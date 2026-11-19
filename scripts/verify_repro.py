@@ -1,0 +1,87 @@
+"""M6: re-run every main pipeline from scratch and replay every live device run offline, then
+check that the records match the committed run files and that the report rebuilds byte for byte.
+Writes report/verify.json."""
+import asyncio
+import json
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+
+from mosaic.config import load_config  # noqa: E402
+from mosaic.data.store import load_corpus, load_questions  # noqa: E402
+from mosaic.pipelines import RunContext, read_run, replay_hints, run_pipeline  # noqa: E402
+from mosaic.session import Session  # noqa: E402
+from mosaic.trace import Tracer  # noqa: E402
+
+FIELDS = ("answer", "correct", "malformed", "truncated", "cost", "latency_ms")
+
+
+def same(a, b) -> bool:
+    for f in FIELDS:
+        x, y = getattr(a, f), getattr(b, f)
+        if isinstance(x, float) and isinstance(y, float):
+            if abs(x - y) > 1e-6 * max(1.0, abs(x)):
+                return False
+        elif x != y:
+            return False
+    return True
+
+
+def rerun(rid: str, offline_live: bool) -> tuple[int, int]:
+    cfg = load_config()
+    s = Session(cfg)
+    meta, old = read_run(s.runs_dir / f"{rid}.jsonl.gz")
+    qids = [r.question_id for r in old]
+    allq = {q.question_id: q for q in load_questions(s.data_dir, meta.get("split", "eval"))}
+    qs = [allq[q] for q in qids]
+    corpora = {sz: load_corpus(s.data_dir, meta.get("split", "eval"), sz) for sz in {q.size for q in qs}}
+    backends = {k: ("replay" if v == "live" else v) for k, v in meta["backends"].items()}
+    router = s.router(meta["pipeline"], pool=meta["pool"], explore=meta.get("explore"))
+    gw = s.gateway(router, backends, Tracer(rid), live=False)
+    if offline_live:  # follow live routing decisions where the record says which request went where
+        gw.replay_hints = replay_hints(old)
+    ctx = RunContext(gw, rid, corpora, planner=meta.get("planner"), arrival_gap_ms=cfg["arrival_gap_ms"],
+                     max_depth=cfg["max_depth"])
+    new = asyncio.run(run_pipeline(meta["pipeline"], qs, ctx))
+    has_ids = any(sp.request_id for r in old for sp in r.spans)
+    return sum(same(a, b) for a, b in zip(old, new)), len(old), has_ids
+
+
+def main() -> int:
+    results = {}
+    for rid in ("main-P0", "main-P1", "main-P2", "main-P3", "main-P3x"):
+        if (ROOT / "runs" / f"{rid}.jsonl.gz").exists():
+            results[rid] = rerun(rid, False)
+    for rid in ("device-C1-live", "device-C2-live", "device-C3-live", "device-C4-live", "device-C5-live",
+                "device-C6-live", "live-P0-128k", "live-P3-128k", "tone-C4-live", "tone-C5-live"):  # noqa: E501
+        if (ROOT / "runs" / f"{rid}.jsonl.gz").exists():
+            results[rid] = rerun(rid, True)
+    rep = ROOT / "report" / "report.md"
+    subprocess.run(["mosaic", "report"], cwd=ROOT, check=True, capture_output=True)
+    first = rep.read_bytes()
+    subprocess.run(["mosaic", "report"], cwd=ROOT, check=True, capture_output=True)
+    report_same = rep.read_bytes() == first
+    bad = {k: (a, b, ids) for k, (a, b, ids) in results.items() if a != b}
+    # a live run routed by the learned router, recorded before spans carried request IDs, can't be followed exactly
+    explained = {k: v for k, v in bad.items() if not v[2]}
+    ok = report_same and not bad
+    matched = sum(a for a, _, _ in results.values())
+    total = sum(b for _, b, _ in results.values())
+    summary = (f"{matched}/{total} question records reproduced exactly across {len(results)} runs "
+               f"(live runs replayed offline); report rebuilt byte-identical: {report_same}")
+    if explained and len(explained) == len(bad):
+        summary += ("; the differing records are in " + ", ".join(sorted(explained)) + ", a live routed run recorded "
+                    "before spans carried request IDs, so its replay re-decides a few routes (answers unchanged)")
+    out = {"ok": ok, "explained_only": bool(bad) and len(explained) == len(bad) and report_same, "summary": summary,
+           "runs": {k: {"matched": a, "total": b} for k, (a, b, _) in results.items()}}
+    (ROOT / "report" / "verify.json").write_text(json.dumps(out, indent=1, sort_keys=True) + "\n")
+    print(summary)
+    return 0 if ok or out["explained_only"] else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

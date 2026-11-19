@@ -1,0 +1,308 @@
+{
+ "tickets": [
+  {
+   "ticket_id": "T-00001",
+   "ts": "2026-01-05T10:00:00Z",
+   "customer_id": "C-0001",
+   "product": "Mesh Pro",
+   "category": "billing",
+   "refund_amount": 49.99,
+   "sentiment": "negative",
+   "text": "hand fixture ticket 1"
+  },
+  {
+   "ticket_id": "T-00002",
+   "ts": "2026-01-10T10:00:00Z",
+   "customer_id": "C-0002",
+   "product": "Mesh Pro",
+   "category": "defect",
+   "refund_amount": 249.0,
+   "sentiment": "negative",
+   "text": "hand fixture ticket 2"
+  },
+  {
+   "ticket_id": "T-00003",
+   "ts": "2026-02-01T10:00:00Z",
+   "customer_id": "C-0001",
+   "product": "Cam Mini",
+   "category": "shipping",
+   "refund_amount": null,
+   "sentiment": "neutral",
+   "text": "hand fixture ticket 3"
+  },
+  {
+   "ticket_id": "T-00004",
+   "ts": "2026-03-03T10:00:00Z",
+   "customer_id": "C-0003",
+   "product": "Mesh Pro",
+   "category": "billing",
+   "refund_amount": null,
+   "sentiment": "positive",
+   "text": "hand fixture ticket 4"
+  },
+  {
+   "ticket_id": "T-00005",
+   "ts": "2026-03-09T10:00:00Z",
+   "customer_id": "C-0002",
+   "product": "Mesh Pro",
+   "category": "shipping",
+   "refund_amount": 20.0,
+   "sentiment": "negative",
+   "text": "hand fixture ticket 5"
+  },
+  {
+   "ticket_id": "T-00006",
+   "ts": "2026-03-15T10:00:00Z",
+   "customer_id": "C-0004",
+   "product": "Router X2",
+   "category": "defect",
+   "refund_amount": 129.99,
+   "sentiment": "neutral",
+   "text": "hand fixture ticket 6"
+  },
+  {
+   "ticket_id": "T-00007",
+   "ts": "2026-03-20T10:00:00Z",
+   "customer_id": "C-0001",
+   "product": "Mesh Pro",
+   "category": "account",
+   "refund_amount": null,
+   "sentiment": "negative",
+   "text": "hand fixture ticket 7"
+  },
+  {
+   "ticket_id": "T-00008",
+   "ts": "2026-03-28T10:00:00Z",
+   "customer_id": "C-0005",
+   "product": "Hub Max",
+   "category": "billing",
+   "refund_amount": 179.0,
+   "sentiment": "negative",
+   "text": "hand fixture ticket 8"
+  },
+  {
+   "ticket_id": "T-00009",
+   "ts": "2026-04-02T10:00:00Z",
+   "customer_id": "C-0003",
+   "product": "Mesh Pro",
+   "category": "defect",
+   "refund_amount": null,
+   "sentiment": "neutral",
+   "text": "hand fixture ticket 9"
+  },
+  {
+   "ticket_id": "T-00010",
+   "ts": "2026-04-11T10:00:00Z",
+   "customer_id": "C-0006",
+   "product": "Cam Mini",
+   "category": "billing",
+   "refund_amount": 11.25,
+   "sentiment": "positive",
+   "text": "hand fixture ticket 10"
+  },
+  {
+   "ticket_id": "T-00011",
+   "ts": "2026-04-19T10:00:00Z",
+   "customer_id": "C-0002",
+   "product": "Router X2",
+   "category": "other",
+   "refund_amount": null,
+   "sentiment": "positive",
+   "text": "hand fixture ticket 11"
+  },
+  {
+   "ticket_id": "T-00012",
+   "ts": "2026-05-01T10:00:00Z",
+   "customer_id": "C-0007",
+   "product": "Mesh Pro",
+   "category": "billing",
+   "refund_amount": 62.25,
+   "sentiment": "negative",
+   "text": "hand fixture ticket 12"
+  },
+  {
+   "ticket_id": "T-00013",
+   "ts": "2026-05-07T10:00:00Z",
+   "customer_id": "C-0004",
+   "product": "Hub Max",
+   "category": "shipping",
+   "refund_amount": null,
+   "sentiment": "neutral",
+   "text": "hand fixture ticket 13"
+  },
+  {
+   "ticket_id": "T-00014",
+   "ts": "2026-05-12T10:00:00Z",
+   "customer_id": "C-0008",
+   "product": "Mesh Pro",
+   "category": "defect",
+   "refund_amount": 249.0,
+   "sentiment": "negative",
+   "text": "hand fixture ticket 14"
+  },
+  {
+   "ticket_id": "T-00015",
+   "ts": "2026-05-30T10:00:00Z",
+   "customer_id": "C-0001",
+   "product": "Cam Mini",
+   "category": "billing",
+   "refund_amount": null,
+   "sentiment": "neutral",
+   "text": "hand fixture ticket 15"
+  },
+  {
+   "ticket_id": "T-00016",
+   "ts": "2026-06-03T10:00:00Z",
+   "customer_id": "C-0009",
+   "product": "VPN Plus",
+   "category": "account",
+   "refund_amount": 39.99,
+   "sentiment": "negative",
+   "text": "hand fixture ticket 16"
+  },
+  {
+   "ticket_id": "T-00017",
+   "ts": "2026-06-08T10:00:00Z",
+   "customer_id": "C-0002",
+   "product": "Mesh Pro",
+   "category": "billing",
+   "refund_amount": null,
+   "sentiment": "negative",
+   "text": "hand fixture ticket 17"
+  },
+  {
+   "ticket_id": "T-00018",
+   "ts": "2026-06-14T10:00:00Z",
+   "customer_id": "C-0010",
+   "product": "Switch 8",
+   "category": "shipping",
+   "refund_amount": 89.5,
+   "sentiment": "neutral",
+   "text": "hand fixture ticket 18"
+  },
+  {
+   "ticket_id": "T-00019",
+   "ts": "2026-06-20T10:00:00Z",
+   "customer_id": "C-0003",
+   "product": "Mesh Pro",
+   "category": "other",
+   "refund_amount": null,
+   "sentiment": "positive",
+   "text": "hand fixture ticket 19"
+  },
+  {
+   "ticket_id": "T-00020",
+   "ts": "2026-06-25T10:00:00Z",
+   "customer_id": "C-0005",
+   "product": "Router X2",
+   "category": "defect",
+   "refund_amount": null,
+   "sentiment": "negative",
+   "text": "hand fixture ticket 20"
+  }
+ ],
+ "cases": [
+  {
+   "template": "A_refund_count",
+   "params": {
+    "product": "Mesh Pro",
+    "months": null
+   },
+   "expected": 5,
+   "note": "T1,T2,T5,T12,T14"
+  },
+  {
+   "template": "A_refund_count",
+   "params": {
+    "product": "Mesh Pro",
+    "months": [
+     3
+    ]
+   },
+   "expected": 1,
+   "note": "T5"
+  },
+  {
+   "template": "A_refund_sum",
+   "params": {
+    "category": "billing",
+    "months": null
+   },
+   "expected": 302.49,
+   "note": "49.99+179+11.25+62.25"
+  },
+  {
+   "template": "A_refund_sum",
+   "params": {
+    "category": "billing",
+    "months": [
+     3,
+     4
+    ]
+   },
+   "expected": 190.25,
+   "note": "179+11.25"
+  },
+  {
+   "template": "A_sentiment_count",
+   "params": {
+    "product": "Mesh Pro",
+    "sentiment": "negative",
+    "months": null
+   },
+   "expected": 7,
+   "note": "T1,T2,T5,T7,T12,T14,T17"
+  },
+  {
+   "template": "A_category_count",
+   "params": {
+    "category": "defect",
+    "months": [
+     5,
+     6
+    ]
+   },
+   "expected": 2,
+   "note": "T14,T20"
+  },
+  {
+   "template": "A_category_count",
+   "params": {
+    "category": "shipping",
+    "months": null
+   },
+   "expected": 4,
+   "note": "T3,T5,T13,T18"
+  },
+  {
+   "template": "P_pair_count",
+   "params": {
+    "a": "shipping",
+    "b": "defect",
+    "window_days": 60
+   },
+   "expected": 2,
+   "note": "C-0002 T2/T5 58 days; C-0004 T6/T13 53 days"
+  },
+  {
+   "template": "P_pair_count",
+   "params": {
+    "a": "shipping",
+    "b": "defect",
+    "window_days": 55
+   },
+   "expected": 1,
+   "note": "only C-0004"
+  },
+  {
+   "template": "P_pair_count",
+   "params": {
+    "a": "billing",
+    "b": "account",
+    "window_days": 30
+   },
+   "expected": 0,
+   "note": "C-0001 billing 74/71 days from account"
+  }
+ ]
+}

@@ -1,0 +1,42 @@
+# Mosaic configuration (PRD 14). Values are starting points to tune, not recommendations.
+seed: 42
+margin_points: 5.0
+alpha: 0.05
+explore_rate: 0.05
+quality_threshold:            # predicted P(call correct) a candidate must clear, per role
+  planner: 0.90
+  mapper: 0.90
+  aggregator: 0.90
+  direct: 0.90
+latency_budget_ms: 15000      # per question; also the per-call ceiling used by the router
+max_queue_ms: 2000            # skip a candidate that would queue longer while another has headroom
+spend_cap_usd: 2.0            # hard cap per live command
+confirm_above_usd: 0.50       # ask before spending more than this
+arrival_gap_ms: 60000         # simulated user waits this long after each answer (virtual time)
+max_depth: 2
+data_dir: data
+runs_dir: runs
+cache_path: .mosaic/cache.sqlite
+
+main_pool: [C4, C5, C6]       # main evaluation and learned router
+baseline: C5                  # P0 direct and P1 fixed
+planner: C5                   # plans are shared by P1-P3 so comparisons isolate routing
+
+eval:
+  sizes: [8k, 32k, 128k, 512k]
+  n_per_class: 60
+  profiling_questions: 300
+  device_study_questions: 15  # live; Groq's free 200k tokens/day per model caps this
+
+providers:
+  groq:     {base_url: "env:GROQ_BASE_URL|https://api.groq.com/openai/v1", key: "env:GROQ_API_KEY"}
+  cerebras: {base_url: "env:CEREBRAS_BASE_URL|https://api.cerebras.ai/v1", key: "env:CEREBRAS_API_KEY"}
+  local:    {base_url: "http://localhost:8080/v1", watts: 28, usd_per_kwh: 0.10, amortisation_usd_per_hour: 0.05}
+  openrouter: {base_url: "https://openrouter.ai/api/v1", key: "env:OPENROUTER_API_KEY"}
+
+# Which backend serves each candidate: live (real API) or sim (simulator). `auto` means live
+# when the provider is reachable and has a key or proxy, otherwise sim. The main evaluation is
+# run with all main-pool candidates on sim so that it is deterministic and complete; the
+# device study runs live.
+backends:
+  default: sim

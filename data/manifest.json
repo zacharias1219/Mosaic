@@ -1,0 +1,16 @@
+{
+ "data_hash": "98ad06dd4429c091",
+ "files": {
+  "corpus-eval-128k.jsonl": "d87e9185206df3494c8aa66b4c523096c48c4907d70411fea34d499e0bd6c596",
+  "corpus-eval-32k.jsonl": "74b35f607b19b09df4abe044af56a95e4926f8a311a0f8702a3c0e138ad69218",
+  "corpus-eval-512k.jsonl": "e06deef50467ea2017b450728c90095e3a304fa5fefc76fce556f5eee1566582",
+  "corpus-eval-8k.jsonl": "2826c4fb1235b1c86b805291e5ebd61112b4814a456f1529f34cf9a38930d647",
+  "corpus-profiling-128k.jsonl": "4adeba8d2840974a97c07f19622ae408f75b530d3b796dea450f302c41d3ad4f",
+  "corpus-profiling-32k.jsonl": "63ec82ebd31a6abec102e3e63a984b1a61fdd680955ab5eb25313b0ed1ace6a1",
+  "corpus-profiling-512k.jsonl": "d2fdf82e10407dcd013e50134904a1bf8978cc0e4927ff76a26b3a35cd177083",
+  "corpus-profiling-8k.jsonl": "b13093b97665e7a0ce9d80affd216563389c0863f748c1afa360177f5c77ca57",
+  "questions-eval.jsonl": "d97f8b62a6eb579d489b85bfe3da9ecb6437f601de2beb3460612b791bfd0794",
+  "questions-profiling.jsonl": "921ac6ff6bda74efe6d0a76c4824b3aa3be9702762dfdbfa456f2e5988bf89b6"
+ },
+ "seed": 42
+}

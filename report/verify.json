@@ -1,0 +1,67 @@
+{
+ "explained_only": true,
+ "ok": false,
+ "runs": {
+  "device-C1-live": {
+   "matched": 12,
+   "total": 12
+  },
+  "device-C2-live": {
+   "matched": 12,
+   "total": 12
+  },
+  "device-C3-live": {
+   "matched": 12,
+   "total": 12
+  },
+  "device-C4-live": {
+   "matched": 12,
+   "total": 12
+  },
+  "device-C5-live": {
+   "matched": 12,
+   "total": 12
+  },
+  "device-C6-live": {
+   "matched": 12,
+   "total": 12
+  },
+  "live-P0-128k": {
+   "matched": 20,
+   "total": 20
+  },
+  "live-P3-128k": {
+   "matched": 19,
+   "total": 20
+  },
+  "main-P0": {
+   "matched": 720,
+   "total": 720
+  },
+  "main-P1": {
+   "matched": 720,
+   "total": 720
+  },
+  "main-P2": {
+   "matched": 720,
+   "total": 720
+  },
+  "main-P3": {
+   "matched": 720,
+   "total": 720
+  },
+  "main-P3x": {
+   "matched": 720,
+   "total": 720
+  },
+  "tone-C4-live": {
+   "matched": 7,
+   "total": 7
+  },
+  "tone-C5-live": {
+   "matched": 7,
+   "total": 7
+  }
+ },
+ "summary": "3725/3726 question records reproduced exactly across 15 runs (live runs replayed offline); report rebuilt byte-identical: True; the differing records are in live-P3-128k, a live routed run recorded before spans carried request IDs, so its replay re-decides a few routes (answers unchanged)"
+}

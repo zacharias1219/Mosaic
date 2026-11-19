@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.env
+.mosaic/cache.sqlite-journal
+data/*.jsonl
+.coverage
+.pytest_cache/
+*.egg-info/
+build/
+profiles/labels.jsonl
+report/coverage.json
