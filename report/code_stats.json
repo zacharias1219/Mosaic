@@ -1,7 +1,7 @@
 {
- "all_lines": 2304,
- "core_lines": 1690,
- "coverage": 93.6,
+ "all_lines": 2334,
+ "core_lines": 1720,
+ "coverage": 93.5,
  "non_core": [
   "cli.py",
   "providers/sim.py",
@@ -11,7 +11,7 @@
  ],
  "per_file_coverage": {
   "__init__.py": 100.0,
-  "config.py": 96.5,
+  "config.py": 96.6,
   "core/__init__.py": 100.0,
   "core/executor.py": 90.2,
   "core/plan_schema.py": 91.3,
@@ -27,8 +27,8 @@
   "eval/compare.py": 100.0,
   "eval/scorer.py": 90.2,
   "eval/stats.py": 97.5,
-  "gateway.py": 91.7,
-  "pipelines.py": 93.7,
+  "gateway.py": 89.6,
+  "pipelines.py": 94.0,
   "providers/__init__.py": 100.0,
   "providers/base.py": 95.0,
   "providers/cache.py": 97.4,
@@ -41,7 +41,7 @@
   "routing/__init__.py": 100.0,
   "routing/features.py": 100.0,
   "routing/predictor.py": 95.9,
-  "routing/profiler.py": 89.3,
+  "routing/profiler.py": 89.5,
   "routing/router.py": 97.1,
   "session.py": 90.6,
   "tokens.py": 100.0,
@@ -67,8 +67,8 @@
   "eval/compare.py": 32,
   "eval/scorer.py": 51,
   "eval/stats.py": 14,
-  "gateway.py": 134,
-  "pipelines.py": 144,
+  "gateway.py": 150,
+  "pipelines.py": 151,
   "providers/__init__.py": 0,
   "providers/base.py": 38,
   "providers/cache.py": 42,
@@ -85,12 +85,12 @@
   "routing/__init__.py": 0,
   "routing/features.py": 33,
   "routing/predictor.py": 44,
-  "routing/profiler.py": 132,
-  "routing/router.py": 118,
+  "routing/profiler.py": 136,
+  "routing/router.py": 119,
   "session.py": 73,
-  "tokens.py": 5,
+  "tokens.py": 6,
   "trace.py": 19,
-  "types.py": 136
+  "types.py": 137
  },
- "tests": 99
+ "tests": 101
 }

@@ -5,6 +5,8 @@ same pipeline code produces both live and simulated runs.
 """
 from __future__ import annotations
 
+import hashlib
+import json
 from dataclasses import dataclass
 from typing import Any, Optional
 
@@ -13,7 +15,7 @@ from mosaic.providers.cache import ResponseCache, cache_key
 from mosaic.providers.local import cpu_cost
 from mosaic.providers.ratelimit import Limiter, QuotaExhausted
 from mosaic.routing.router import PoolState, Router
-from mosaic.tokens import count_tokens
+from mosaic.tokens import TOKEN_MARGIN, count_tokens
 from mosaic.trace import Tracer
 from mosaic.types import CallSpec, Candidate, Decision, Profile, Span
 
@@ -47,6 +49,7 @@ class Gateway:
         self.spent = 0.0
         self.max_attempts = max_attempts
         self.fallbacks = 0
+        self.replay_hints: dict[tuple[str, str], list[str]] = {}  # (question, request) -> candidates used live
 
     def max_window(self, role: str) -> int:
         ws = [min(c.context_window, c.max_call_tokens or 10 ** 9) for c in self.candidates.values()
@@ -64,6 +67,10 @@ class Gateway:
                    parent_id: Optional[str] = None, exclude: Optional[set[str]] = None,
                    pin: Optional[str] = None) -> CallResult:
         exclude = set() if exclude is None else exclude
+        request_id = hashlib.sha256(json.dumps(messages, sort_keys=True).encode()).hexdigest()[:16]
+        hint = self.replay_hints.get((qid, request_id))
+        if hint and not pin:
+            pin = hint.pop(0)  # replaying a live run: follow the choice it actually made
         retries = 0
         last_span = None
         failed: set[str] = set()   # candidates that failed during this call
@@ -87,7 +94,7 @@ class Gateway:
                                                         self.local_cost))
             if dec is None:
                 too_large = not exclude and all(
-                    spec.tokens_in_est + spec.tokens_out_est > min(c.context_window, c.max_call_tokens or 10 ** 9)
+                    (spec.tokens_in_est + spec.tokens_out_est) * TOKEN_MARGIN > min(c.context_window, c.max_call_tokens or 10 ** 9)
                     for c in self.candidates.values() if spec.role in c.roles)
                 return CallResult(None, at, last_span, None, too_large=too_large)
             c = self.candidates[dec.candidate_id]
@@ -97,6 +104,17 @@ class Gateway:
             key = cache_key(c.provider, c.model, messages, params)
             cacheable = self.cache is not None and getattr(client, "cacheable", True)
             comp = self.cache.get(key) if cacheable else None
+            if comp is None and cacheable and getattr(client, "replay_only", False):
+                # offline replay: routing decisions made live depended on wall-clock quota state, so if the
+                # router now picks differently, replay the candidate that actually served these messages live
+                for alt in self.candidates.values():
+                    if alt.id != c.id and alt.id not in exclude and getattr(self.clients.get(alt.id), "replay_only", False):
+                        p_alt = {**params, "reasoning_effort": alt.reasoning_effort}
+                        hit = self.cache.get(cache_key(alt.provider, alt.model, messages, p_alt))
+                        if hit is not None:
+                            c, client, comp, key = alt, self.clients[alt.id], hit, cache_key(alt.provider, alt.model, messages, p_alt)
+                            dec = dec.model_copy(update={"candidate_id": alt.id, "reason": dec.reason + " (replayed live choice)"})
+                            break
             lim = self.limiters[c.id]
             try:
                 if self.spend_cap_usd is not None and comp is None and self.spent + dec.c_hat > self.spend_cap_usd:
@@ -132,7 +150,7 @@ class Gateway:
                     tokens_out=comp.tokens_out, reasoning_tokens=comp.reasoning_tokens, ttft_ms=comp.ttft_ms,
                     queue_ms=start - at, total_ms=comp.total_ms, cost=cost, cache_hit=comp.replayed,
                     retries=retries + comp.retries, propensity=dec.propensity, q_hat=dec.q_hat, l_hat=dec.l_hat,
-                    c_hat=dec.c_hat, explored=dec.explored, note=dec.reason,
+                    c_hat=dec.c_hat, explored=dec.explored, note=dec.reason, request_id=request_id,
                     features=spec.features)
                 return CallResult(comp.text, end, span, dec)
             except SpendCapExceeded:

@@ -95,3 +95,14 @@ def test_latency_budget_drops_candidates_that_would_blow_it():
     c5 = cand("C5")
     r = Router("learned", predictor=pred({"CPU": 0.95, "C5": 0.95}), latency_budget_ms=15000)
     assert r.route(MAP, state([cpu, c5])).candidate_id == "C5"
+
+
+def test_queue_never_pushes_a_call_below_the_bar():
+    """Regression: a saturated good candidate must not lose to an idle one below the quality bar."""
+    good = cand("C5", price_in=0.3, price_out=0.6, rpm=450, tpm=150000)
+    bad = cand("C6", price_in=0.0, price_out=0.0, sim={"tier": "tiny"})
+    lims = {"C5": Limiter(450, 150000, 16, virtual=True), "C6": Limiter(None, None, 1, virtual=True)}
+    lims["C5"].reserve(148000, 0.0)  # C5's minute is spent: the next call queues ~60 s
+    r = Router("learned", predictor=pred({"C5": 0.95, "C6": 0.02}), latency_budget_ms=10 ** 9)
+    d = r.route(MAP, state([good, bad], at=1000.0, limiters=lims))
+    assert d.candidate_id == "C5" and not d.flagged and d.l_hat > 50_000

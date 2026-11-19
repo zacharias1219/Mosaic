@@ -153,6 +153,16 @@ async def run_pipeline(name: str, questions: list[Question], ctx: RunContext) ->
     return out
 
 
+def replay_hints(records: list[RunRecord]) -> dict[tuple[str, str], list[str]]:
+    """(question, request) -> candidates that served it, in order, from a live run's spans."""
+    hints: dict[tuple[str, str], list[str]] = {}
+    for r in records:
+        for sp in r.spans:
+            if sp.request_id and sp.ok and sp.candidate_id:
+                hints.setdefault((r.question_id, sp.request_id), []).append(sp.candidate_id)
+    return hints
+
+
 # ---- run files -----------------------------------------------------------------------------
 def git_commit() -> str:
     try:

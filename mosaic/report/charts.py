@@ -55,7 +55,7 @@ def accuracy_by_size(series: dict[str, list[tuple[str, float, float, float]]], p
     for pipe, pts in series.items():
         xs = list(range(len(pts)))
         ax.errorbar([x + 0.06 * list(series).index(pipe) for x in xs], [p[1] * 100 for p in pts],
-                    yerr=[[100 * (p[1] - p[2]) for p in pts], [100 * (p[3] - p[1]) for p in pts]],
+                    yerr=[[max(0.0, 100 * (p[1] - p[2])) for p in pts], [max(0.0, 100 * (p[3] - p[1])) for p in pts]],
                     label=pipe, color=PALETTE.get(pipe), marker="o", capsize=3, lw=1.5)
         ax.set_xticks(xs, [p[0] for p in pts])
     ax.set_ylim(0, 105)

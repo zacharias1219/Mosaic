@@ -96,16 +96,17 @@ def build_report(root: Path, cfg: dict) -> Path:
            f"Commit `{any_meta.get('git_commit')}` · data hash `{any_meta.get('data_hash')}` · seed {any_meta.get('seed')} "
            f"· margin {margin:g} points · one-sided 95% paired bootstrap (10,000 resamples) · Holm across cells.", "",
            "## Read this first: what is measured and what is simulated", "",
-           "* **Live (real API calls, real clocks):** the device study on Groq LPU (C1, C2, C3) and on this machine's "
-           "CPU through llama.cpp (C6), 12 questions at 8k each, plus the planner calls (gpt-oss-120b on Groq). These "
-           "numbers are measurements.",
-           "* **Simulated:** the main evaluation (720 questions × 4 pipelines) and the router training data run on the "
-           "main pool C4, C5 (Cerebras) and C6, served by Mosaic's deterministic simulator in virtual time. Cerebras "
-           "was not reachable from the build machine. The simulator's per-ticket error rates are **fitted from the "
-           "live, oracle-labelled map calls** (same weights share one error model: C4 ← C3, C5 ← C2, C6 ← C6), its "
-           "Cerebras latencies are vendor-claim-level priors, and its long-context decay for direct calls is an "
-           "assumption, stated in `candidates.yaml`. So the main tables validate the machinery and show how the "
-           "router behaves under those assumptions; they are not evidence about Cerebras itself.",
+           "* **Live (real API calls, real clocks):** the device study, 12 questions at 8k on every candidate: Groq LPU "
+           "(C1, C2, C3), Cerebras wafer-scale (C4, C5) and this machine's CPU through llama.cpp (C6), with plans written "
+           "by gpt-oss-120b on Groq. Then a live validation slice on the Cerebras main pool: P0 against P3 on 20 "
+           "aggregate and pairwise questions at 128k (section *Live validation*). These numbers are measurements.",
+           "* **Simulated:** the full main evaluation (720 questions × 4 pipelines) and the router's training data, on "
+           "the main pool C4, C5 (Cerebras) and C6, served by Mosaic's deterministic simulator in virtual time. Running "
+           "it live would take about 15 hours of Cerebras quota per pipeline. The simulator's per-ticket error rates are "
+           "**fitted from the live, oracle-labelled map calls of all six devices** (each set of weights shares one "
+           "error model, fitted from both of its devices), and its latencies are the **measured** live profiles. Its "
+           "long-context decay for direct calls remains an assumption, stated in `candidates.yaml`. The live "
+           "validation slice checks the simulator against reality on the same questions.",
            "* Re-running `mosaic report` on the same run files reproduces this file byte for byte.", ""]
 
     # ---- headline -------------------------------------------------------------------------
@@ -211,6 +212,7 @@ def build_report(root: Path, cfg: dict) -> Path:
     if "P3" in runs:
         md += router_section(runs, root, cfg)
     md += lookup_section(runs)
+    md += live_validation_section(runs_dir, runs, margin)
     md += device_section(root, runs_dir, out_dir)
     md += calibration_section(root)
     md += metrics_section(runs, primary_verdict, root, cfg, margin)
@@ -310,16 +312,78 @@ def lookup_section(runs: dict[str, list[RunRecord]]) -> list[str]:
     return md
 
 
+def live_validation_section(runs_dir: Path, runs: dict[str, list[RunRecord]], margin: float) -> list[str]:
+    """P0 vs P3 on real Cerebras calls, next to what the simulator predicted for the same questions."""
+    files = {p: runs_dir / f"live-{p}-128k.jsonl.gz" for p in ("P0", "P3")}
+    if not all(f.exists() for f in files.values()):
+        return []
+    live = {p: read_run(f)[1] for p, f in files.items()}
+    md = ["## Live validation on Cerebras", "",
+          "P0 (C5 reads the corpus, trimmed to its window) and P3 (learned router over C4, C5 and C6, all live) on the "
+          "same 20 questions: the first 10 aggregate and 10 pairwise questions at 128k, real clocks, real quotas. Runs "
+          "`live-P0-128k` and `live-P3-128k`; the simulated columns are the same questions in `precal-*-slice` "
+          "(before recalibration) and `main-P0` / `main-P3` (after); \"agree\" = same right/wrong outcome per question.", ""]
+    rows = []
+    for p in ("P0", "P3"):
+        lr = live[p]
+        ids = {r.question_id for r in lr}
+        sr = {r.question_id: r for r in runs.get(p, []) if r.question_id in ids}
+        agree = np.mean([sr[r.question_id].correct == r.correct for r in lr if r.question_id in sr]) if sr else float("nan")
+        pf = runs_dir / f"precal-{p}-slice.jsonl.gz"
+        pre = {r.question_id: r for r in read_run(pf)[1]} if pf.exists() else {}
+        pre_agree = np.mean([pre[r.question_id].correct == r.correct for r in lr if r.question_id in pre]) if pre else float("nan")
+        lat = [r.latency_ms for r in lr]
+        own = [r.latency_ms - min((s for s in r.spans if s.candidate_id), key=lambda s: s.start_ms).queue_ms for r in lr]
+        rows.append([p, len(lr), pct(np.mean([r.correct for r in lr])),
+                     f"{pct(np.mean([x.correct for x in pre.values()]))} ({pct(pre_agree)} agree)" if pre else "—",
+                     f"{pct(np.mean([x.correct for x in sr.values()]))} ({pct(agree)} agree)" if sr else "—",
+                     money(cost_per_correct(lr, n_boot=500)[0]), f"{np.median(lat) / 1000:.1f} / {p95(lat) / 1000:.1f} s",
+                     f"{np.median(own) / 1000:.1f} / {p95(own) / 1000:.1f} s", sum(r.truncated for r in lr)])
+    md += [table(["pipeline", "n", "live accuracy", "simulated, before (out of sample)", "simulated, after recalibration",
+                  "live cost / correct", "latency p50 / p95", "from first admission p50 / p95", "truncated"], rows), "",
+           "Live questions ran back to back, so a question's first call often waited for the previous question's "
+           "tokens to leave the 150k-a-minute window. *From first admission* subtracts that carry-over; queueing "
+           "inside the question (a fan-out exceeding the quota) stays in.", "",
+           "**What the validation caught.** Before seeing this slice, the simulator predicted 80% for P3 here and live "
+           "gave 60%. Six of P3's eight live misses were tone counts. The device study had held only 3 tone "
+           "observations, so the simulator's tone error rate (about 1% per ticket) was almost pure prior; the live "
+           "slice measured about 5% for Qwen (29 errors in 379). Part of that is the data, not the model: every "
+           "ticket reports a problem, and a \"positive\" ticket differs only by a polite closing line, so tone "
+           "labels are ambiguous by construction. The simulator was then recalibrated on these live calls "
+           "(`precal-*-slice` keeps the before-predictions), so the *after* column is in-sample for these 20 "
+           "questions; its value is that the other 700 simulated questions now carry the measured tone error rate.", "",
+           "**A second catch.** Recalibrated on that slice, the simulator briefly favoured gpt-oss-120b (C4) for tone: "
+           "C4's tone rate still rested on 6 observations, so it was nearly all prior, and the learned router exploited "
+           "it (22 of its 31 wins over the rules were tone questions). A targeted live run on the same 7 tone questions "
+           "(`tone-C4-live`, `tone-C5-live`) scored C4 0/7 and C5 1/7, and measured C4's tone error at 15% per ticket, "
+           "3× Qwen's. With that in the fit, the learned router's advantage disappeared. Lesson: a learned router finds "
+           "and exploits whichever parameter has the least evidence, so every routing gain needs its evidence checked "
+           "live.", ""]
+    v = compare(live["P0"], live["P3"], margin=margin, pooled={"all": (("A", "P"), ("128k",))})["all"][0]
+    md += [f"Paired on these 20 questions, P3 − P0 = {v.diff:+.1f} points (one-sided 95% CI [{v.ci_low:+.1f}, "
+           f"{v.ci_high:+.1f}], McNemar p = {v.p_value:.3g}): **{v.outcome}** — "
+           f"\"{WORDING[v.outcome].format(m=margin)}\". With n = 20 this is a check that the simulated verdict "
+           "survives contact with the real API, not a replacement for the 240-question analysis.", ""]
+    spans = [s for r in live["P3"] for s in r.spans if s.candidate_id and s.ok]
+    by = Counter((s.role, s.candidate_id) for s in spans)
+    md += ["Live P3 calls by role and candidate: " + ", ".join(f"{r} {c} ×{n}" for (r, c), n in sorted(by.items())) + ".", ""]
+    return md
+
+
 def device_section(root: Path, runs_dir: Path, out_dir: Path) -> list[str]:
     md = ["## Device study: same weights, different silicon", "",
           "P1 (every executor call on one candidate) on the same 12 questions at 8k (4 per class), with the same plans "
           "(written once by gpt-oss-120b on Groq and replayed from the cache). Service time = time from admission to "
           "last token; queue = time waiting for the free-tier token budget.", ""]
-    rows, lat_rows = [], []
+    rows, lat_rows, used = [], [], []
     for cid, model, dev, rid in DEVICE:
+        live_f = runs_dir / f"{rid.replace('-sim', '-live')}.jsonl.gz"
+        if live_f.exists():  # a live run supersedes the simulated row
+            rid = rid.replace("-sim", "-live")
         f = runs_dir / f"{rid}.jsonl.gz"
+        used.append(rid)
         if not f.exists():
-            rows.append([cid, model, dev, "not run", "", "", "", "", "", "", ""])
+            rows.append([cid, model, dev, "not run", "", "", "", "", "", "", "", ""])
             continue
         meta, recs = read_run(f)
         src = "live" if meta.get("backends", {}).get(cid) == "live" else "simulated"
@@ -350,11 +414,16 @@ def device_section(root: Path, runs_dir: Path, out_dir: Path) -> list[str]:
     if lat_rows:
         charts.device_latency(lat_rows, out_dir / "device_latency.svg", "Device study: map and direct call service time")
         md += ["![Device latency](device_latency.svg)", "",
-               "Runs: " + ", ".join(f"`{r}`" for *_, r in DEVICE) + ". With 12 questions the accuracy columns are "
-               "anecdotal; the latency rows rest on every call in the run. The Cerebras rows are simulated from priors, "
-               "so the same-weights comparison (C3 vs C4, C2 vs C5) is only half measured: a key with Cerebras access "
-               "turns them into measurements with `mosaic run --pipeline P1 --sizes 8k --n-per-class 4 --fixed C4 "
-               "--planner C3 --live C4,C3`.", ""]
+               "Runs: " + ", ".join(f"`{r}`" for r in used) + ". With 12 questions the accuracy columns are "
+               "anecdotal; the latency rows rest on every call in the run. Question latency in these runs also carries "
+               "the planner call's original Groq free-tier queue (replayed from the cache identically for every "
+               "device), so compare devices on the call columns, not on question latency.", "",
+               "**Same weights did not mean same answers.** Qwen 3.8 27B gave identical question-level results on Groq "
+               "and Cerebras. gpt-oss-120b on Cerebras (C4) missed two questions it got right on Groq (C3): a tone count "
+               "(0 instead of 2), and a lookup where the ticket says \"Please refund the $59.99\" and the question asks "
+               "what refund it *received*. There C4 took the stricter reading (a request is not a refund received), "
+               "while the oracle counts requests. Qwen on Cerebras reasons by default, unlike on Groq, so C5 is run with "
+               "`reasoning_effort: none` to keep the comparison like for like.", ""]
     return md
 
 
@@ -422,7 +491,7 @@ def metrics_section(runs, primary, root: Path, cfg: dict, margin: float) -> list
     if vf.exists():
         v = json.loads(vf.read_text())
         rows.append(["M6 reproducibility", "cached re-run reproduces every number", v.get("summary", ""),
-                     "met" if v.get("ok") else "not met"])
+                     "met" if v.get("ok") else "partly met" if v.get("explained_only") else "not met"])
     cov = root / "report" / "code_stats.json"
     if cov.exists():
         c = json.loads(cov.read_text())
@@ -430,15 +499,18 @@ def metrics_section(runs, primary, root: Path, cfg: dict, margin: float) -> list
                      f"{c['core_lines']:,} core lines; {c['coverage']:.0f}% coverage; {c['tests']} tests",
                      "met" if c["core_lines"] <= 2700 and c["coverage"] >= 80 else "partly met"])
     return ["## Success metrics (hypotheses, reported whichever way they land)", "",
-            "M1–M5 use the simulated main pool (see the first section).", "",
+            "M1–M5 use the simulated main pool (see the first section); the live validation slice reports the same "
+            "comparison on real Cerebras calls.", "",
             table(["metric", "target", "result", "status"], rows), ""]
 
 
 def limitations() -> list[str]:
     return ["## Limitations", "",
-            "* Cerebras (C4, C5) was unreachable from the build machine, so every main-pool Cerebras call is simulated. "
-            "The error model is fitted from Groq calls with the same weights; latency and quota behaviour come from "
-            "published limits and vendor-level speed claims.",
+            "* The full main evaluation is simulated: running it live would take about 15 hours of Cerebras quota per "
+            "pipeline. Live Cerebras evidence is the device study and a 20-question validation slice. The simulator's "
+            "error model is fitted from 66 live map calls per weights family, and its latency from measured profiles; "
+            "C4's prefill speed is too fast to separate from its base latency at that sample size, so it keeps the "
+            "vendor-level prior.",
             "* The direct path's degradation with context length in the simulator is an assumption (it follows the "
             "pattern RLM and OOLONG report: lookups stay easy, aggregation collapses), not a measurement. Groq's free "
             "plan caps a call at 8k tokens, so it could not measure direct reads of 32k+ corpora.",
@@ -455,4 +527,6 @@ def limitations() -> list[str]:
             "the CPU cost uses the nominal 28 W in `mosaic.yaml`.",
             "* Network jitter beyond the measured p95, provider-side batching and price changes during a run are not "
             "modelled. Prices are list prices typed into `candidates.yaml`; the Qwen 3.8 27B Cerebras price is a placeholder.",
+            "* Tone labels are ambiguous by construction (every ticket reports a problem; a positive one differs only by "
+            "its closing line), so tone-count questions partly measure label ambiguity rather than model quality.",
             "* Mosaic is an independent reconstruction from public material and makes no claim about Callosum's internals.", ""]

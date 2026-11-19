@@ -46,6 +46,7 @@ def save_candidates(cands: dict[str, Candidate], path: Optional[str | Path] = No
 class ReplayOnlyClient:
     """Stands in for a live provider when replaying from cache: any cache miss is an error,
     so an offline replay can never silently call the network."""
+    replay_only = True
 
     async def complete(self, cand, messages, **kw):
         from mosaic.providers.base import ProviderError

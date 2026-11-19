@@ -9,7 +9,7 @@ from mosaic.core.plan_schema import Plan, PlanError, extract_json
 from mosaic.core.prompts import agg_messages, direct_messages, map_messages
 from mosaic.core.reducers import reduce_rows, to_answer
 from mosaic.routing.features import direct_features, map_features
-from mosaic.tokens import count_tokens
+from mosaic.tokens import TOKEN_MARGIN, count_tokens
 from mosaic.types import CallSpec
 
 if TYPE_CHECKING:
@@ -191,7 +191,7 @@ class Executor:
                      parent: Optional[str], res: ExecResult) -> ExecResult:
         lines = [r.line for r in recs]
         window = self.gw.max_window("direct")
-        budget = window - 1500
+        budget = int(window / TOKEN_MARGIN) - 1500
         kept, used = [], 0
         for ln in lines:
             t = count_tokens(ln) + 1

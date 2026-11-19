@@ -119,3 +119,27 @@ async def test_sim_runs_are_deterministic(world_8k, tickets_8k):
     a = await run_pipeline("P2", qs, ctx_for("P2", world_8k, tickets_8k, "rules"))
     b = await run_pipeline("P2", qs, ctx_for("P2", world_8k, tickets_8k, "rules"))
     assert [x.model_dump() for x in a] == [x.model_dump() for x in b]
+
+
+async def test_offline_replay_follows_recorded_live_routing(tmp_path):
+    """Both candidates have a cached answer for the same request; the replay must use the one the live run used."""
+    from mosaic.config import ReplayOnlyClient
+    from mosaic.providers.base import Completion
+    from mosaic.providers.cache import ResponseCache, cache_key
+    from mosaic.types import CallSpec
+    cache = ResponseCache(tmp_path / "c.sqlite")
+    msgs = [{"role": "user", "content": "x"}]
+    a, b = cand("C4", price_in=0.01, price_out=0.01), cand("C5", price_in=1.0, price_out=1.0)
+    for c, text in ((a, '{"v": "from C4"}'), (b, '{"v": "from C5"}')):
+        params = {"max_tokens": 10, "temperature": 0.0, "reasoning_effort": c.reasoning_effort, "json": True}
+        cache.put(cache_key(c.provider, c.model, msgs, params), c.provider, c.model,
+                  Completion(text=text, tokens_in=5, tokens_out=5, ttft_ms=1, total_ms=2))
+    replay = ReplayOnlyClient()
+    gw = Gateway({"C4": a, "C5": b}, {"C4": replay, "C5": replay}, Router("rules"), Tracer("r"), VirtualClock(),
+                 cache=cache)
+    spec = CallSpec(role="mapper", tokens_in_est=5, tokens_out_est=5, on_critical_path=False)
+    first = await gw.call(spec, msgs, 10, 0.0, "q")
+    assert first.text == '{"v": "from C4"}'  # the router alone picks the cheaper candidate
+    gw.replay_hints = {("q", first.span.request_id): ["C5"]}
+    again = await gw.call(spec, msgs, 10, 0.0, "q")
+    assert again.text == '{"v": "from C5"}' and again.span.candidate_id == "C5"

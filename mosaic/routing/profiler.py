@@ -22,7 +22,7 @@ LABELS = ROOT / "profiles" / "labels.jsonl"
 PROFILES = ROOT / "profiles" / "profiles.parquet"
 
 
-def summarize(spans: Iterable[Span], candidate_id: str, concurrency: int, source: str) -> Profile | None:
+def summarize(spans: Iterable[Span], candidate_id: str, concurrency: int, source: str, prior=None) -> Profile | None:
     """Latency profile from call spans. Service time is fitted as
     total = base + tokens_in / prefill_tps + tokens_out / tps_out (non-negative least squares),
     which also works for servers that buffer the whole answer into one chunk (TTFT = total)."""
@@ -39,9 +39,13 @@ def summarize(spans: Iterable[Span], candidate_id: str, concurrency: int, source
         base, b_in, b_out = coef
     else:
         base, b_in, b_out = float(np.median(ttft)), 0.0, 0.0
+    # a coefficient the data can't identify (too fast to separate from base latency) falls back to the
+    # median per-call speed, then to the prior, never to an infinite speed
+    dec = [s.tokens_out / ((s.total_ms - s.ttft_ms) / 1000) for s in ok if s.total_ms - s.ttft_ms > 20 and s.tokens_out > 5]
+    prefill = 1000 / b_in if b_in > 1e-5 else (prior.prefill_tps if prior else 1e5)
+    tps = 1000 / b_out if b_out > 1e-5 else (float(np.median(dec)) if dec else (prior.tps_out if prior else 1e4))
     return Profile(candidate_id=candidate_id, ttft_p50=float(np.percentile(ttft, 50)), ttft_p95=float(np.percentile(ttft, 95)),
-                   ttft_base=float(base), prefill_tps=float(1000 / b_in) if b_in > 1e-6 else 1e6,
-                   tps_out=float(1000 / b_out) if b_out > 1e-6 else 1e6, error_rate=1 - len(ok) / len(sp),
+                   ttft_base=float(base), prefill_tps=float(prefill), tps_out=float(tps), error_rate=1 - len(ok) / len(sp),
                    n_calls=len(sp), concurrency=concurrency,
                    measured_at=datetime.now(timezone.utc).strftime("%Y-%m-%d"), source=source)
 
@@ -102,7 +106,7 @@ def run_profile(a, cfg, root: Path = ROOT) -> int:
         meta, recs = read_run(s.runs_dir / f"{rid}.jsonl.gz")
         spans = [sp for r in recs for sp in r.spans]
         for cid in meta.get("pool", []):  # the run's own candidate; planner replays are not profiled again
-            prof = summarize(spans, cid, 1, f"live:{rid}")
+            prof = summarize(spans, cid, 1, f"live:{rid}", prior=s.cands[cid])
             if prof and meta.get("backends", {}).get(cid) == "live":
                 profiles.append(prof)
                 c = s.cands[cid]  # measured latency replaces the prior, so simulated calls match it
@@ -134,7 +138,8 @@ def run_profile(a, cfg, root: Path = ROOT) -> int:
             ctx = RunContext(gw, tracer.run_id, corpora, use_reference_plans=True, arrival_gap_ms=cfg["arrival_gap_ms"])
             recs = asyncio.run(run_pipeline("P1", qs, ctx))
             spans = [sp for r in recs for sp in r.spans]
-            prof = summarize(spans, cid, 1 if lvl == "1" else gw.limiters[cid].max_concurrency, "live" if cid in live else "sim")
+            prof = summarize(spans, cid, 1 if lvl == "1" else gw.limiters[cid].max_concurrency, "live" if cid in live else "sim",
+                             prior=s.cands[cid])
             if prof:
                 profiles.append(prof)
             if lvl == levels[-1] or (s.cands[cid].max_concurrency == 1 and lvl == "1"):
@@ -193,12 +198,14 @@ def ticket_errors(world, events: list[dict], cands=None) -> dict[str, dict[str, 
     cands = cands or load_candidates()
     seen = set()
     for ev in events:
-        key = (cands[ev["candidate_id"]].sim.get("weights", ev["candidate_id"]), tuple(ev["lines"]),
-               json.dumps(ev["schema"], sort_keys=True), ev.get("task", ""))
+        weights = cands[ev["candidate_id"]].sim.get("weights", ev["candidate_id"])
+        # the same call replayed for several questions counts once per device; two devices with the same
+        # weights are separate evidence (their outputs can differ)
+        key = (ev["candidate_id"], tuple(ev["lines"]), json.dumps(ev["schema"], sort_keys=True), ev.get("task", ""))
         if key in seen:
             continue
         seen.add(key)
-        d = out[key[0]]
+        d = out[weights]
         d["malformed"][0] += int(ev["malformed"])
         d["malformed"][1] += 1
         if ev["malformed"]:
@@ -271,7 +278,7 @@ def calibrate_sim(a, cfg, root: Path = ROOT) -> int:
                            "schema": plan.map_schema, "task": plan.map_task, "malformed": not rows and bool(recs)})
         return rows, end
 
-    from mosaic.pipelines import RunContext, run_pipeline
+    from mosaic.pipelines import RunContext, replay_hints, run_pipeline
     from mosaic.trace import Tracer
     from mosaic.data.store import load_corpus, load_questions
     Executor.map_chunk = capture
@@ -283,7 +290,9 @@ def calibrate_sim(a, cfg, root: Path = ROOT) -> int:
             corpora = {sz: load_corpus(s.data_dir, meta.get("split", "eval"), sz) for sz in {q.size for q in qs}}
             backends = {k: ("replay" if v == "live" else v) for k, v in meta["backends"].items()}
             tracer = Tracer(rid)
-            gw = s.gateway(s.router("P1", pool=meta["pool"]), backends, tracer, live=False)
+            gw = s.gateway(s.router(meta["pipeline"], pool=meta["pool"], explore=meta.get("explore")), backends, tracer,
+                           live=False)
+            gw.replay_hints = replay_hints(recs)
             ctx = RunContext(gw, rid, corpora, planner=meta.get("planner"))
             asyncio.run(run_pipeline(meta["pipeline"], qs, ctx))
             print(f"replayed {rid}: {len(qs)} questions, cache hits {gw.cache.hits}, misses {gw.cache.misses}")

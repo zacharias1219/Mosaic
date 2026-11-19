@@ -1,7 +1,7 @@
 # Mosaic workflow. `make all` rebuilds everything offline from the committed cache and runs;
 # `make device` is the only target that needs network (Groq + a local llama.cpp server).
 SHELL := /bin/bash
-DEVICE_LIVE := device-C1-live,device-C2-live,device-C3-live,device-C6-live
+DEVICE_LIVE := device-C1-live,device-C2-live,device-C3-live,device-C4-live,device-C5-live,device-C6-live
 
 .PHONY: install data device calibrate device-sim profile train eval report demo test cov live-test verify stats all
 
@@ -11,16 +11,16 @@ install:
 data:                       ## corpora + question sets (deterministic, ~5 s)
 	mosaic gen
 
-device:                     ## LIVE device study: 12 questions at 8k on Groq C1/C2/C3 and the local CPU (C6)
+device:                     ## LIVE device study: 12 questions at 8k on Groq (C1-C3), Cerebras (C4, C5) and the local CPU (C6)
 	mosaic run --pipeline P1 --sizes 8k --n-per-class 4 --fixed C3 --planner C3 --live C3 --plans-only --yes
-	for c in C1 C2 C3 C6; do \
+	for c in C1 C2 C3 C4 C5 C6; do \
 	  mosaic run --pipeline P1 --sizes 8k --n-per-class 4 --fixed $$c --planner C3 --live $$c,C3 --run-id device-$$c-live --yes & \
 	done; wait
 
 calibrate:                  ## fit the simulator's error model from the live, oracle-labelled map calls (offline replay)
-	mosaic calibrate --runs $(DEVICE_LIVE)
+	mosaic calibrate --runs $(DEVICE_LIVE),live-P3-128k,tone-C4-live,tone-C5-live
 
-device-sim:                 ## the Cerebras rows of the device study (simulated: Cerebras unreachable from the build machine)
+device-sim:                 ## simulated Cerebras rows, for machines without a Cerebras key (the report prefers live rows)
 	for c in C4 C5; do \
 	  mosaic run --pipeline P1 --sizes 8k --n-per-class 4 --fixed $$c --planner C3 --replay C3 --run-id device-$$c-sim --yes; \
 	done
@@ -58,4 +58,4 @@ stats:                      ## core line count + coverage summary for the report
 verify:                     ## M6: cached re-run reproduces the runs and the report byte for byte
 	python scripts/verify_repro.py
 
-all: data calibrate device-sim profile train eval cov stats verify report
+all: data calibrate profile train eval cov stats verify report

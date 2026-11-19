@@ -120,6 +120,7 @@ class Span(BaseModel):
     l_hat: Optional[float] = None
     c_hat: Optional[float] = None
     explored: bool = False
+    request_id: Optional[str] = None  # hash of the messages, so an offline replay can follow live routing
     ok: bool = True
     correct: Optional[bool] = None
     note: str = ""

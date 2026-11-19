@@ -12,6 +12,7 @@ from typing import Literal, Optional
 from mosaic.providers.local import cpu_cost
 from mosaic.providers.ratelimit import Limiter
 from mosaic.routing.predictor import Predictor
+from mosaic.tokens import TOKEN_MARGIN
 from mosaic.types import CallSpec, Candidate, Decision, Profile
 
 # R1: what a sensible engineer would write without data. Keyed by model tier.
@@ -90,7 +91,7 @@ class Router:
         for c in state.candidates.values():
             if c.id in state.exclude or spec.role not in c.roles or (self.pool and c.id not in self.pool):
                 continue
-            if need + c.sim.get("reasoning_tokens", 0) > c.context_window:
+            if (need + c.sim.get("reasoning_tokens", 0)) * TOKEN_MARGIN > c.context_window:
                 continue
             if c.max_call_tokens and need + c.sim.get("reasoning_tokens", 0) > c.max_call_tokens:
                 continue
@@ -113,18 +114,19 @@ class Router:
                             c_hat=predict_cost(c, spec, lat, state.local_cost), propensity=1.0,
                             reason="fixed" if hit else f"fixed candidate {self.fixed} infeasible; first feasible",
                             flagged=not hit)
-        # step 2: capacity. Skip candidates that would queue while another has headroom.
-        quick = [x for x in F if x[1] <= self.max_queue_ms]
-        F = quick or F
         scored = []
         for c, wait in F:
             q, src = self.quality(c, spec)
             lat = predict_latency(c, spec, state.profiles.get(c.id), wait)
-            scored.append((c, q, lat, predict_cost(c, spec, lat, state.local_cost), src))
+            scored.append((c, q, lat, predict_cost(c, spec, lat, state.local_cost), src, wait))
         # latency budget: drop candidates that alone would blow the per-question budget
         within = [s for s in scored if s[2] <= self.latency_budget_ms]
         scored = within or scored
         ok = [s for s in scored if s[1] >= self.tau[spec.role]]
+        # capacity: among candidates that clear the bar, skip one that would queue while another has headroom.
+        # A queue never pushes a call onto a candidate below the bar; waiting is better than a wrong answer.
+        quick = [s for s in ok if s[5] <= self.max_queue_ms]
+        ok = quick or ok
         key = (lambda s: (s[2], s[3])) if spec.on_critical_path else (lambda s: (s[3], s[2]))
         if ok:
             best, flagged, why = min(ok, key=key), False, "lowest latency above bar" if spec.on_critical_path else "cheapest above bar"
@@ -137,6 +139,6 @@ class Router:
                 chosen, explored = self.rng.choice(scored), True
             k = len(scored)
             prop = self.explore_rate / k + ((1 - self.explore_rate) if chosen[0].id == best[0].id else 0.0)
-        c, q, lat, cost, src = chosen
+        c, q, lat, cost, src, _ = chosen
         return Decision(candidate_id=c.id, q_hat=q, l_hat=lat, c_hat=cost, propensity=prop,
                         reason=("explore" if explored else why) + f" [{src}]", explored=explored, flagged=flagged)

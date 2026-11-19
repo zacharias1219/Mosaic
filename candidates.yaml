@@ -64,7 +64,7 @@ candidates:
     drop_n: 283
     prior_malformed: 0.01
     malformed_n: 15
-    calibrated_from: device-C1-live,device-C2-live,device-C3-live,device-C6-live
+    calibrated_from: device-C1-live,device-C2-live,device-C3-live,device-C4-live,device-C5-live,device-C6-live,live-P3-128k,tone-C4-live,tone-C5-live
 - id: C2
   provider: groq
   device: LPU (SRAM, compiler-scheduled)
@@ -94,26 +94,26 @@ candidates:
     reasoning_tokens: 0
     err_easy: 0.003
     err_hard: 0.018
-    drop: 0.0003
-    malformed: 0.00462
+    drop: 4.0e-05
+    malformed: 0.00175
     plan_err: 0.07
     direct_skill: 0.94
     agg_skill: 0.94
     error_rate: 0.004
     prior_err_category: 0.0105
-    err_category: 0.00205
-    err_category_n: 206
+    err_category: 0.00142
+    err_category_n: 2276
     prior_err_sentiment: 0.0105
-    err_sentiment: 0.00991
-    err_sentiment_n: 3
+    err_sentiment: 0.04831
+    err_sentiment_n: 379
     prior_err_refund: 0.0105
-    err_refund: 0.00445
-    err_refund_n: 68
+    err_refund: 0.00088
+    err_refund_n: 550
     prior_drop: 0.002
-    drop_n: 283
+    drop_n: 2803
     prior_malformed: 0.006
-    malformed_n: 15
-    calibrated_from: device-C1-live,device-C2-live,device-C3-live,device-C6-live
+    malformed_n: 121
+    calibrated_from: device-C1-live,device-C2-live,device-C3-live,device-C4-live,device-C5-live,device-C6-live,live-P3-128k,tone-C4-live,tone-C5-live
 - id: C3
   provider: groq
   device: LPU (SRAM, compiler-scheduled)
@@ -144,26 +144,26 @@ candidates:
     reasoning_tokens: 120
     err_easy: 0.002
     err_hard: 0.012
-    drop: 0.00015
-    malformed: 0.00308
+    drop: 4.0e-05
+    malformed: 0.01154
     plan_err: 0.04
     direct_skill: 0.96
     agg_skill: 0.97
     error_rate: 0.004
     prior_err_category: 0.007
-    err_category: 0.00999
-    err_category_n: 206
+    err_category: 0.01056
+    err_category_n: 595
     prior_err_sentiment: 0.007
-    err_sentiment: 0.0066
-    err_sentiment_n: 3
+    err_sentiment: 0.15335
+    err_sentiment_n: 355
     prior_err_refund: 0.007
-    err_refund: 0.00297
-    err_refund_n: 68
+    err_refund: 0.00111
+    err_refund_n: 266
     prior_drop: 0.001
-    drop_n: 283
+    drop_n: 1098
     prior_malformed: 0.004
-    malformed_n: 15
-    calibrated_from: device-C1-live,device-C2-live,device-C3-live,device-C6-live
+    malformed_n: 54
+    calibrated_from: device-C1-live,device-C2-live,device-C3-live,device-C4-live,device-C5-live,device-C6-live,live-P3-128k,tone-C4-live,tone-C5-live
 - id: C4
   provider: cerebras
   device: Wafer-scale (SRAM)
@@ -181,38 +181,38 @@ candidates:
   rpd: 2400
   tpd: 1000000
   max_concurrency: 4
-  limit_safety: 1.0
+  limit_safety: 0.85
   reasoning_effort: low
   in_main_pool: true
-  ttft_ms: 250.0
+  ttft_ms: 325.7
   prefill_tps: 15000.0
-  tps_out: 2500.0
+  tps_out: 1442.9
   sim:
     tier: large
     weights: gpt-oss-120b
     reasoning_tokens: 120
     err_easy: 0.002
     err_hard: 0.012
-    drop: 0.00015
-    malformed: 0.00308
+    drop: 4.0e-05
+    malformed: 0.01154
     plan_err: 0.04
     direct_skill: 0.96
     agg_skill: 0.97
     error_rate: 0.003
     prior_err_category: 0.007
-    err_category: 0.00999
-    err_category_n: 206
+    err_category: 0.01056
+    err_category_n: 595
     prior_err_sentiment: 0.007
-    err_sentiment: 0.0066
-    err_sentiment_n: 3
+    err_sentiment: 0.15335
+    err_sentiment_n: 355
     prior_err_refund: 0.007
-    err_refund: 0.00297
-    err_refund_n: 68
+    err_refund: 0.00111
+    err_refund_n: 266
     prior_drop: 0.001
-    drop_n: 283
+    drop_n: 1098
     prior_malformed: 0.004
-    malformed_n: 15
-    calibrated_from: device-C1-live,device-C2-live,device-C3-live,device-C6-live
+    malformed_n: 54
+    calibrated_from: device-C1-live,device-C2-live,device-C3-live,device-C4-live,device-C5-live,device-C6-live,live-P3-128k,tone-C4-live,tone-C5-live
 - id: C5
   provider: cerebras
   device: Wafer-scale (SRAM)
@@ -230,37 +230,38 @@ candidates:
   rpd: 648000
   tpd: 216000000
   max_concurrency: 16
-  limit_safety: 1.0
+  limit_safety: 0.85
+  reasoning_effort: none
   in_main_pool: true
-  ttft_ms: 220.0
-  prefill_tps: 12000.0
-  tps_out: 1700.0
+  ttft_ms: 322.9
+  prefill_tps: 12918.0
+  tps_out: 3066.5
   sim:
     tier: mid
     weights: qwen3.8-27b
     reasoning_tokens: 0
     err_easy: 0.003
     err_hard: 0.018
-    drop: 0.0003
-    malformed: 0.00462
+    drop: 4.0e-05
+    malformed: 0.00175
     plan_err: 0.07
     direct_skill: 0.94
     agg_skill: 0.94
     error_rate: 0.003
     prior_err_category: 0.0105
-    err_category: 0.00205
-    err_category_n: 206
+    err_category: 0.00142
+    err_category_n: 2276
     prior_err_sentiment: 0.0105
-    err_sentiment: 0.00991
-    err_sentiment_n: 3
+    err_sentiment: 0.04831
+    err_sentiment_n: 379
     prior_err_refund: 0.0105
-    err_refund: 0.00445
-    err_refund_n: 68
+    err_refund: 0.00088
+    err_refund_n: 550
     prior_drop: 0.002
-    drop_n: 283
+    drop_n: 2803
     prior_malformed: 0.006
-    malformed_n: 15
-    calibrated_from: device-C1-live,device-C2-live,device-C3-live,device-C6-live
+    malformed_n: 121
+    calibrated_from: device-C1-live,device-C2-live,device-C3-live,device-C4-live,device-C5-live,device-C6-live,live-P3-128k,tone-C4-live,tone-C5-live
 - id: C6
   provider: local
   device: Laptop CPU via llama.cpp (4 cores)
@@ -301,4 +302,4 @@ candidates:
     drop_n: 280
     prior_malformed: 0.06
     malformed_n: 15
-    calibrated_from: device-C1-live,device-C2-live,device-C3-live,device-C6-live
+    calibrated_from: device-C1-live,device-C2-live,device-C3-live,device-C4-live,device-C5-live,device-C6-live,live-P3-128k,tone-C4-live,tone-C5-live

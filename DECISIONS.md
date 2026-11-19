@@ -81,13 +81,16 @@ P1 and P2 to share plans and chunks.
 **Chosen:** `strategy: direct` plus a header filter that isolates the ticket, so a lookup is one small model call.
 **Evidence:** report § Lookups (M4).
 
-## D9. A deterministic simulator, calibrated from live calls, for what this machine can't reach
+## D9. A deterministic simulator, calibrated from live calls, for the full evaluation
 **Chosen:** `providers/sim.py` reads the ground truth and corrupts it at per-field rates that `mosaic calibrate`
 fits from live, oracle-labelled map calls. It uses a Beta prior with 50 pseudo-observations so thin data stays near
 the prior, dedupes identical calls, and skips category labels from tasks that restrict the label set. Same weights
 share one error model (C4 ← C3, C5 ← C2). Latency is simulated in virtual time from per-candidate priors.
-**Alternatives:** skip the main evaluation (no Cerebras key on the build machine); or run it on Groq (at 200k tokens
-a day per model, ~1% of the evaluation).
+**Alternatives:** run the full evaluation live: about 15 hours of Cerebras quota per pipeline (150k tokens a
+minute), and impossible on Groq's free plan (200k tokens a day per model). Cerebras was unreachable at first, so the
+first calibration used Groq only; with a key, the device study added both Cerebras rows and the fit now uses all six
+live devices (identical calls count once per device), plus a 20-question live validation slice (report § Live
+validation).
 **Evidence and caveats:** the live data showed errors are systematic per phrasing (gpt-oss reads "two-factor codes
 rejected" as a defect and "renewal price went up" as other), while the simulator draws errors independently per
 ticket. That understates correlated errors, so the report labels every simulated number and treats the main tables
@@ -122,3 +125,39 @@ fixed SVG hash salts and no dates, and the live response cache is committed, so 
 replay can never silently call the network.
 **Bug this caught:** in live mode, a call after a cached (replayed) call started on the real clock, before the
 replayed call's logical end, which understated question latency. Calls now start at `max(logical time, admission)`.
+
+## D14. Token counts carry a 1.2× margin against real tokenizers
+**Chosen:** the proxy tokenizer stays (deterministic, provider-free), but every window check and the direct path's
+truncation budget multiply it by 1.2, and Cerebras rows admit 85% of their published per-minute limits.
+**Evidence:** the first live P0 call at 128k failed with HTTP 400 `context_length_exceeded`: a prompt the proxy
+counted as 129.5k tokens was 146.7k to Cerebras' Qwen tokenizer (1.13×). Groq's 8k per-call cap had hidden this,
+because no Groq call came near a window. With the margin, the trimmed corpus fits (one call, 10 s, $0.037).
+
+## D15. Rate limits steer choices only among candidates that clear the bar
+**Chosen:** the capacity step (skip a candidate that would queue while another has headroom) applies only within
+the set predicted to clear τ. If every good candidate is queued, the call waits rather than going to an idle one
+below the bar.
+**Evidence:** after Cerebras' limits were tightened to 85%, pairwise questions at 128k+ saturated C5's token budget.
+The old capacity step then left only the idle CPU model, which won as "highest predicted quality" at about 2%, and
+46 questions turned wrong (P2 fell from 85.8% to 80.6%). A regression test covers it
+(`test_queue_never_pushes_a_call_below_the_bar`).
+
+## D16. Validate the simulator live, and check every routing gain's evidence
+**Chosen:** a live slice on the real main pool (P0 vs P3, 20 questions at 128k, about $0.90), compared per question
+with what the simulator had predicted before seeing it (`precal-*-slice`); then recalibrate on it.
+**Evidence:** the simulator was optimistic: 80% predicted vs 60% live for P3. Six of P3's eight live misses were tone
+counts, and the tone error rate had rested on 3 observations. After recalibrating, the learned router appeared to
+beat the rules (82.2% vs 79.6%), but 22 of its 31 wins came from sending tone chunks to gpt-oss-120b, whose tone
+rate rested on 6 observations. A targeted live run on those tone chunks (0/7 for C4, 1/7 for C5) measured C4's tone
+error at 15% per ticket, 3× Qwen's, and the gain vanished (P3 80.0% = P1 80.0%). A learned router will find whichever
+parameter has the least evidence; every gain it shows needs that evidence checked.
+**Data finding:** tone labels are ambiguous by construction. Every ticket reports a problem, and "positive" differs
+only by a polite closing line, so the tone-count template measures label ambiguity as much as model quality.
+
+## D17. Offline replays follow recorded live routing
+**Chosen:** spans record a request ID (hash of the messages). Replaying a live run pins each request to the
+candidate that served it live, because live routing depended on wall-clock quota state the replay can't recreate.
+**Evidence:** replaying `live-P3-128k` re-decided three chunks of one question. Other questions had sent the same
+chunks to the other candidate, so both answers were cached and nothing failed, but the cost differed by 2%. That run
+predates request IDs and stays 19/20 exact in M6; later live runs replay exactly (test
+`test_offline_replay_follows_recorded_live_routing`).
