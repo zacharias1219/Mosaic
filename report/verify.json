@@ -1,0 +1,50 @@
+{
+ "ok": true,
+ "runs": {
+  "device-C1-live": {
+   "matched": 12,
+   "total": 12
+  },
+  "device-C2-live": {
+   "matched": 12,
+   "total": 12
+  },
+  "device-C3-live": {
+   "matched": 12,
+   "total": 12
+  },
+  "device-C4-sim": {
+   "matched": 12,
+   "total": 12
+  },
+  "device-C5-sim": {
+   "matched": 12,
+   "total": 12
+  },
+  "device-C6-live": {
+   "matched": 12,
+   "total": 12
+  },
+  "main-P0": {
+   "matched": 720,
+   "total": 720
+  },
+  "main-P1": {
+   "matched": 720,
+   "total": 720
+  },
+  "main-P2": {
+   "matched": 720,
+   "total": 720
+  },
+  "main-P3": {
+   "matched": 720,
+   "total": 720
+  },
+  "main-P3x": {
+   "matched": 720,
+   "total": 720
+  }
+ },
+ "summary": "3672/3672 question records reproduced exactly across 11 runs (live runs replayed offline); report rebuilt byte-identical: True"
+}

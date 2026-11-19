@@ -1,0 +1,304 @@
+# Candidate pool (PRD 7). One row per (model, device) pair the router can send a call to.
+# Limits live here, not in code. `mosaic candidates` refreshes model IDs and windows from the
+# providers' /models endpoints and warns when rate-limit headers disagree with this file.
+#
+# Prices are $ per million tokens, entered by hand from public price lists as of Nov 2026 and
+# used only for comparison; free-tier calls are priced at list price (PRD 11). Qwen 3.8 27B on
+# Cerebras has no public list price we could confirm: its price is a placeholder.
+#
+# Latency priors (ttft_ms, prefill_tps, tps_out) are used before profiling exists. Groq and
+# local-CPU priors are overwritten by measured profiles; Cerebras priors are vendor-claim-level
+# guesses because Cerebras was not reachable from the build machine.
+#
+# `sim:` holds the simulator's error model for each weight family (see mosaic/providers/sim.py).
+# `mosaic calibrate` fits per-field error rates (err_category, err_refund, err_sentiment), drop and
+# malformed from live, oracle-labelled map calls and writes them back below, keeping the prior
+# it started from as prior_*; same weights share the same error model.
+candidates:
+- id: C1
+  provider: groq
+  device: LPU (SRAM, compiler-scheduled)
+  model: openai/gpt-oss-20b
+  roles:
+  - mapper
+  - planner
+  - aggregator
+  - direct
+  context_window: 131072
+  price_in: 0.075
+  price_out: 0.3
+  rpm: 30
+  tpm: 8000
+  rpd: 1000
+  tpd: 200000
+  max_concurrency: 2
+  limit_safety: 0.75
+  max_call_tokens: 7000
+  reasoning_effort: low
+  in_main_pool: false
+  ttft_ms: 367.8
+  prefill_tps: 3365.6
+  tps_out: 4097.5
+  sim:
+    tier: small
+    weights: gpt-oss-20b
+    reasoning_tokens: 150
+    err_easy: 0.006
+    err_hard: 0.035
+    drop: 0.00045
+    malformed: 0.00769
+    plan_err: 0.12
+    direct_skill: 0.9
+    agg_skill: 0.9
+    error_rate: 0.005
+    prior_err_category: 0.0205
+    err_category: 0.01263
+    err_category_n: 206
+    prior_err_sentiment: 0.0205
+    err_sentiment: 0.04711
+    err_sentiment_n: 3
+    prior_err_refund: 0.0205
+    err_refund: 0.00869
+    err_refund_n: 68
+    prior_drop: 0.003
+    drop_n: 283
+    prior_malformed: 0.01
+    malformed_n: 15
+    calibrated_from: device-C1-live,device-C2-live,device-C3-live,device-C6-live
+- id: C2
+  provider: groq
+  device: LPU (SRAM, compiler-scheduled)
+  model: qwen/qwen3.8-27b
+  roles:
+  - mapper
+  - planner
+  - aggregator
+  - direct
+  context_window: 131072
+  price_in: 0.29
+  price_out: 0.59
+  rpm: 30
+  tpm: 8000
+  rpd: 1000
+  tpd: 200000
+  max_concurrency: 2
+  limit_safety: 0.75
+  max_call_tokens: 7000
+  in_main_pool: false
+  ttft_ms: 343.5
+  prefill_tps: 39206.9
+  tps_out: 391.2
+  sim:
+    tier: mid
+    weights: qwen3.8-27b
+    reasoning_tokens: 0
+    err_easy: 0.003
+    err_hard: 0.018
+    drop: 0.0003
+    malformed: 0.00462
+    plan_err: 0.07
+    direct_skill: 0.94
+    agg_skill: 0.94
+    error_rate: 0.004
+    prior_err_category: 0.0105
+    err_category: 0.00205
+    err_category_n: 206
+    prior_err_sentiment: 0.0105
+    err_sentiment: 0.00991
+    err_sentiment_n: 3
+    prior_err_refund: 0.0105
+    err_refund: 0.00445
+    err_refund_n: 68
+    prior_drop: 0.002
+    drop_n: 283
+    prior_malformed: 0.006
+    malformed_n: 15
+    calibrated_from: device-C1-live,device-C2-live,device-C3-live,device-C6-live
+- id: C3
+  provider: groq
+  device: LPU (SRAM, compiler-scheduled)
+  model: openai/gpt-oss-120b
+  roles:
+  - planner
+  - aggregator
+  - mapper
+  - direct
+  context_window: 131072
+  price_in: 0.15
+  price_out: 0.6
+  rpm: 30
+  tpm: 8000
+  rpd: 1000
+  tpd: 200000
+  max_concurrency: 2
+  limit_safety: 0.75
+  max_call_tokens: 7000
+  reasoning_effort: low
+  in_main_pool: false
+  ttft_ms: 323.9
+  prefill_tps: 4803.3
+  tps_out: 428.7
+  sim:
+    tier: large
+    weights: gpt-oss-120b
+    reasoning_tokens: 120
+    err_easy: 0.002
+    err_hard: 0.012
+    drop: 0.00015
+    malformed: 0.00308
+    plan_err: 0.04
+    direct_skill: 0.96
+    agg_skill: 0.97
+    error_rate: 0.004
+    prior_err_category: 0.007
+    err_category: 0.00999
+    err_category_n: 206
+    prior_err_sentiment: 0.007
+    err_sentiment: 0.0066
+    err_sentiment_n: 3
+    prior_err_refund: 0.007
+    err_refund: 0.00297
+    err_refund_n: 68
+    prior_drop: 0.001
+    drop_n: 283
+    prior_malformed: 0.004
+    malformed_n: 15
+    calibrated_from: device-C1-live,device-C2-live,device-C3-live,device-C6-live
+- id: C4
+  provider: cerebras
+  device: Wafer-scale (SRAM)
+  model: gpt-oss-120b
+  roles:
+  - planner
+  - aggregator
+  - direct
+  - mapper
+  context_window: 131000
+  price_in: 0.35
+  price_out: 0.75
+  rpm: 5
+  tpm: 30000
+  rpd: 2400
+  tpd: 1000000
+  max_concurrency: 4
+  limit_safety: 1.0
+  reasoning_effort: low
+  in_main_pool: true
+  ttft_ms: 250.0
+  prefill_tps: 15000.0
+  tps_out: 2500.0
+  sim:
+    tier: large
+    weights: gpt-oss-120b
+    reasoning_tokens: 120
+    err_easy: 0.002
+    err_hard: 0.012
+    drop: 0.00015
+    malformed: 0.00308
+    plan_err: 0.04
+    direct_skill: 0.96
+    agg_skill: 0.97
+    error_rate: 0.003
+    prior_err_category: 0.007
+    err_category: 0.00999
+    err_category_n: 206
+    prior_err_sentiment: 0.007
+    err_sentiment: 0.0066
+    err_sentiment_n: 3
+    prior_err_refund: 0.007
+    err_refund: 0.00297
+    err_refund_n: 68
+    prior_drop: 0.001
+    drop_n: 283
+    prior_malformed: 0.004
+    malformed_n: 15
+    calibrated_from: device-C1-live,device-C2-live,device-C3-live,device-C6-live
+- id: C5
+  provider: cerebras
+  device: Wafer-scale (SRAM)
+  model: qwen-3.8-27b
+  roles:
+  - mapper
+  - aggregator
+  - direct
+  - planner
+  context_window: 131072
+  price_in: 0.3
+  price_out: 0.6
+  rpm: 450
+  tpm: 150000
+  rpd: 648000
+  tpd: 216000000
+  max_concurrency: 16
+  limit_safety: 1.0
+  in_main_pool: true
+  ttft_ms: 220.0
+  prefill_tps: 12000.0
+  tps_out: 1700.0
+  sim:
+    tier: mid
+    weights: qwen3.8-27b
+    reasoning_tokens: 0
+    err_easy: 0.003
+    err_hard: 0.018
+    drop: 0.0003
+    malformed: 0.00462
+    plan_err: 0.07
+    direct_skill: 0.94
+    agg_skill: 0.94
+    error_rate: 0.003
+    prior_err_category: 0.0105
+    err_category: 0.00205
+    err_category_n: 206
+    prior_err_sentiment: 0.0105
+    err_sentiment: 0.00991
+    err_sentiment_n: 3
+    prior_err_refund: 0.0105
+    err_refund: 0.00445
+    err_refund_n: 68
+    prior_drop: 0.002
+    drop_n: 283
+    prior_malformed: 0.006
+    malformed_n: 15
+    calibrated_from: device-C1-live,device-C2-live,device-C3-live,device-C6-live
+- id: C6
+  provider: local
+  device: Laptop CPU via llama.cpp (4 cores)
+  model: qwen2.5-1.5b-instruct-q4
+  roles:
+  - mapper
+  - direct
+  context_window: 8192
+  price_in: 0.0
+  price_out: 0.0
+  max_concurrency: 1
+  limit_safety: 1.0
+  in_main_pool: true
+  ttft_ms: 0.0
+  prefill_tps: 140.9
+  tps_out: 4.9
+  watts: 28.0
+  sim:
+    tier: tiny
+    weights: qwen2.5-1.5b-q4
+    reasoning_tokens: 0
+    err_easy: 0.03
+    err_hard: 0.15
+    drop: 0.00522
+    malformed: 0.06154
+    plan_err: 0.4
+    direct_skill: 0.8
+    agg_skill: 0.6
+    error_rate: 0.002
+    prior_err_category: 0.09
+    err_category: 0.3897
+    err_category_n: 205
+    prior_err_sentiment: 0.09
+    prior_err_refund: 0.09
+    err_refund: 0.24482
+    err_refund_n: 66
+    prior_drop: 0.02
+    drop_n: 280
+    prior_malformed: 0.06
+    malformed_n: 15
+    calibrated_from: device-C1-live,device-C2-live,device-C3-live,device-C6-live
