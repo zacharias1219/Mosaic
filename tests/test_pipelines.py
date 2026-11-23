@@ -143,3 +143,15 @@ async def test_offline_replay_follows_recorded_live_routing(tmp_path):
     gw.replay_hints = {("q", first.span.request_id): ["C5"]}
     again = await gw.call(spec, msgs, 10, 0.0, "q")
     assert again.text == '{"v": "from C5"}' and again.span.candidate_id == "C5"
+
+
+async def test_p0f_filters_in_code_then_makes_one_direct_call(world_8k, tickets_8k):
+    qs = [q for q in questions(world_8k) if q.cls == "A"]
+    r1 = await run_pipeline("P1", qs, ctx_for("P1", world_8k, tickets_8k, "fixed"))
+    rf = await run_pipeline("P0f", qs, ctx_for("P0f", world_8k, tickets_8k, "fixed"))
+    for a, b in zip(r1, rf):
+        assert {**a.plan, "strategy": "direct"} == b.plan  # the same plan, only the strategy differs
+        roles = [s.role for s in b.spans if s.candidate_id and s.ok]
+        assert roles == ["planner", "direct"]              # one model call after planning, no map calls
+        f = next(s for s in b.spans if s.role == "filter")
+        assert f.note == next(s for s in a.spans if s.role == "filter").note  # the same code filter

@@ -1,7 +1,10 @@
-"""Deterministic simulated provider for offline runs and for candidates this machine cannot
-reach (Cerebras). It is a test double, not a model: it reads the ground truth and corrupts it
-at rates set per candidate in candidates.yaml (`sim:`), which `mosaic calibrate` fits from
-live, oracle-labelled map calls. Every number produced through it is labelled "simulated".
+"""Deterministic simulated provider for offline runs, for the full 720-question evaluation (about
+15 hours of Cerebras quota per pipeline if run live), and for machines without provider keys. It
+is a test double, not a model: it reads the ground truth and corrupts it at rates set per
+candidate in candidates.yaml (`sim:`), which `mosaic calibrate` fits from live, oracle-labelled
+map calls on every device, Cerebras included. Its accuracy curve for direct calls is an
+assumption, not a fit, and live runs show it is too kind to short filtered contexts. Every
+number produced through it is labelled "simulated".
 """
 from __future__ import annotations
 

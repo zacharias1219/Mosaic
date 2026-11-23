@@ -30,11 +30,19 @@
    "matched": 20,
    "total": 20
   },
+  "live-P0f-128k": {
+   "matched": 20,
+   "total": 20
+  },
   "live-P3-128k": {
    "matched": 19,
    "total": 20
   },
   "main-P0": {
+   "matched": 720,
+   "total": 720
+  },
+  "main-P0f": {
    "matched": 720,
    "total": 720
   },
@@ -63,5 +71,5 @@
    "total": 7
   }
  },
- "summary": "3725/3726 question records reproduced exactly across 15 runs (live runs replayed offline); report rebuilt byte-identical: True; the differing records are in live-P3-128k, a live routed run recorded before spans carried request IDs, so its replay re-decides a few routes (answers unchanged)"
+ "summary": "4465/4466 question records reproduced exactly across 17 runs (live runs replayed offline); report rebuilt byte-identical: True; the differing records are in live-P3-128k, a live routed run recorded before spans carried request IDs, so its replay re-decides a few routes (answers unchanged)"
 }

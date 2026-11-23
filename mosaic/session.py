@@ -63,7 +63,7 @@ class Session:
         pool = pool or cfg["main_pool"]
         common = dict(thresholds=cfg["quality_threshold"], seed=cfg["seed"], latency_budget_ms=cfg["latency_budget_ms"],
                       max_queue_ms=cfg["max_queue_ms"], pool=pool)
-        if pipeline in ("P0", "P1"):  # R0: every call on one candidate (failures retry it)
+        if pipeline in ("P0", "P0f", "P1"):  # R0: every call on one candidate (failures retry it)
             fixed = pool[0] if len(pool) == 1 else cfg["baseline"]
             return Router("fixed", fixed=fixed, **{**common, "pool": [fixed]})
         if pipeline == "P2":

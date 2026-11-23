@@ -1,6 +1,6 @@
 {
- "all_lines": 2334,
- "core_lines": 1720,
+ "all_lines": 2339,
+ "core_lines": 1722,
  "coverage": 93.5,
  "non_core": [
   "cli.py",
@@ -50,7 +50,7 @@
  },
  "per_file_lines": {
   "__init__.py": 0,
-  "cli.py": 313,
+  "cli.py": 316,
   "config.py": 30,
   "core/__init__.py": 0,
   "core/executor.py": 205,
@@ -68,7 +68,7 @@
   "eval/scorer.py": 51,
   "eval/stats.py": 14,
   "gateway.py": 150,
-  "pipelines.py": 151,
+  "pipelines.py": 153,
   "providers/__init__.py": 0,
   "providers/base.py": 38,
   "providers/cache.py": 42,
@@ -92,5 +92,5 @@
   "trace.py": 19,
   "types.py": 137
  },
- "tests": 101
+ "tests": 103
 }

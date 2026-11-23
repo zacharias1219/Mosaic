@@ -14,8 +14,8 @@ from mosaic.types import RunRecord, Span
 
 def fake_runs(root: Path):
     rng = np.random.default_rng(0)
-    acc = {"P0": 0.3, "P1": 0.85, "P2": 0.84, "P3": 0.86}
-    cost = {"P0": 0.03, "P1": 0.01, "P2": 0.006, "P3": 0.005}
+    acc = {"P0": 0.3, "P0f": 0.5, "P1": 0.85, "P2": 0.84, "P3": 0.86}
+    cost = {"P0": 0.03, "P0f": 0.02, "P1": 0.01, "P2": 0.006, "P3": 0.005}
     for p, rid in MAIN.items():
         recs = []
         for cls in "LAP":
@@ -53,3 +53,13 @@ def test_report_regenerates_byte_identically_and_traces_run_ids(tmp_path):
 def test_pareto_marks_non_dominated_set():
     pts = [("P0", 0.03, 9000, 0.3), ("P1", 0.01, 4000, 0.85), ("P2", 0.006, 4500, 0.84), ("P3", 0.008, 5000, 0.80)]
     assert non_dominated(pts) == {"P1", "P2"}
+
+
+def test_cell_verdicts_are_labelled_unadjusted(tmp_path):
+    shutil.copy(ROOT / "candidates.yaml", tmp_path / "candidates.yaml")
+    fake_runs(tmp_path)
+    text = build_report(tmp_path, load_config()).read_text()
+    cell_rows = [ln for ln in text.splitlines() if re.match(r"\| [LAP] (8k|32k|128k|512k) \| 20 \|", ln)]
+    assert cell_rows and all("(unadjusted)" in ln for ln in cell_rows)
+    pooled = [ln for ln in text.splitlines() if ln.startswith("| **A+P")]
+    assert pooled and not any("unadjusted" in ln for ln in pooled)

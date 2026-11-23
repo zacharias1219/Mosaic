@@ -26,7 +26,7 @@ eval:
   sizes: [8k, 32k, 128k, 512k]
   n_per_class: 60
   profiling_questions: 300
-  device_study_questions: 15  # live; Groq's free 200k tokens/day per model caps this
+  device_study_questions: 12  # live, 4 per class at 8k; Groq's free 200k tokens/day per model caps this
 
 providers:
   groq:     {base_url: "env:GROQ_BASE_URL|https://api.groq.com/openai/v1", key: "env:GROQ_API_KEY"}

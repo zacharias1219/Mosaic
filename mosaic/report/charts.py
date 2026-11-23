@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt  # noqa: E402
 
 plt.rcParams.update({"svg.hashsalt": "mosaic", "font.size": 9, "axes.spines.top": False, "axes.spines.right": False,
                      "font.family": "DejaVu Sans"})
-PALETTE = {"P0": "#6b7280", "P1": "#2563eb", "P2": "#d97706", "P3": "#059669"}
+PALETTE = {"P0": "#6b7280", "P0f": "#9333ea", "P1": "#2563eb", "P2": "#d97706", "P3": "#059669"}
 
 
 def _save(fig, path: Path) -> None:
