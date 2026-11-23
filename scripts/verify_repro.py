@@ -53,11 +53,11 @@ def rerun(rid: str, offline_live: bool) -> tuple[int, int]:
 
 def main() -> int:
     results = {}
-    for rid in ("main-P0", "main-P1", "main-P2", "main-P3", "main-P3x"):
+    for rid in ("main-P0", "main-P0f", "main-P1", "main-P2", "main-P3", "main-P3x"):
         if (ROOT / "runs" / f"{rid}.jsonl.gz").exists():
             results[rid] = rerun(rid, False)
     for rid in ("device-C1-live", "device-C2-live", "device-C3-live", "device-C4-live", "device-C5-live",
-                "device-C6-live", "live-P0-128k", "live-P3-128k", "tone-C4-live", "tone-C5-live"):  # noqa: E501
+                "device-C6-live", "live-P0-128k", "live-P0f-128k", "live-P3-128k", "tone-C4-live", "tone-C5-live"):  # noqa: E501
         if (ROOT / "runs" / f"{rid}.jsonl.gz").exists():
             results[rid] = rerun(rid, True)
     rep = ROOT / "report" / "report.md"

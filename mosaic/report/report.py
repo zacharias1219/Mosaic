@@ -17,7 +17,7 @@ from mosaic.types import RunRecord
 
 SIZES = ["8k", "32k", "128k", "512k"]
 PRIMARY = (("A", "P"), ("128k", "512k"))
-MAIN = {"P0": "main-P0", "P1": "main-P1", "P2": "main-P2", "P3": "main-P3"}
+MAIN = {"P0": "main-P0", "P0f": "main-P0f", "P1": "main-P1", "P2": "main-P2", "P3": "main-P3"}
 DEVICE = [("C3", "gpt-oss-120b", "Groq LPU", "device-C3-live"), ("C4", "gpt-oss-120b", "Cerebras WSE", "device-C4-sim"),
           ("C2", "qwen3.8-27b", "Groq LPU", "device-C2-live"), ("C5", "qwen3.8-27b", "Cerebras WSE", "device-C5-sim"),
           ("C1", "gpt-oss-20b", "Groq LPU", "device-C1-live"), ("C6", "qwen2.5-1.5b q4", "local CPU", "device-C6-live")]
@@ -98,9 +98,9 @@ def build_report(root: Path, cfg: dict) -> Path:
            "## Read this first: what is measured and what is simulated", "",
            "* **Live (real API calls, real clocks):** the device study, 12 questions at 8k on every candidate: Groq LPU "
            "(C1, C2, C3), Cerebras wafer-scale (C4, C5) and this machine's CPU through llama.cpp (C6), with plans written "
-           "by gpt-oss-120b on Groq. Then a live validation slice on the Cerebras main pool: P0 against P3 on 20 "
+           "by gpt-oss-120b on Groq. Then a live validation slice on the Cerebras main pool: P0, P0f and P3 on 20 "
            "aggregate and pairwise questions at 128k (section *Live validation*). These numbers are measurements.",
-           "* **Simulated:** the full main evaluation (720 questions × 4 pipelines) and the router's training data, on "
+           "* **Simulated:** the full main evaluation (720 questions × 5 pipelines) and the router's training data, on "
            "the main pool C4, C5 (Cerebras) and C6, served by Mosaic's deterministic simulator in virtual time. Running "
            "it live would take about 15 hours of Cerebras quota per pipeline. The simulator's per-ticket error rates are "
            "**fitted from the live, oracle-labelled map calls of all six devices** (each set of weights shares one "
@@ -110,12 +110,22 @@ def build_report(root: Path, cfg: dict) -> Path:
            "* Re-running `mosaic report` on the same run files reproduces this file byte for byte.", ""]
 
     # ---- headline -------------------------------------------------------------------------
-    order = [p for p in ("P0", "P1", "P2", "P3") if p in runs]
-    names = {"P0": "P0 direct", "P1": "P1 recursive, fixed", "P2": "P2 recursive, rules", "P3": "P3 recursive, learned"}
+    order = [p for p in ("P0", "P0f", "P1", "P2", "P3") if p in runs]
+    names = {"P0": "P0 one direct call, corpus trimmed to the window", "P0f": "P0f filter in code, then one direct call",
+             "P1": "P1 recursive, fixed", "P2": "P2 recursive, rules", "P3": "P3 recursive, learned"}
+    p0_prim = sel(runs.get("P0", []), *PRIMARY)
+    n_trim = sum(r.truncated for r in p0_prim)
     md += ["## Headline: aggregate and pairwise questions at 128k and 512k", "",
-           f"Pooled over the primary set (classes A and P, sizes 128k and 512k; runs {', '.join(MAIN[p] for p in order)}). "
-           "P0 cannot read 512k (every window is about 131k tokens), so at 512k it answers from a corpus truncated to "
-           "its window; that is recorded per question.", ""]
+           f"Pooled over the primary set (classes A and P, sizes 128k and 512k, 240 questions; runs "
+           f"{', '.join(MAIN[p] for p in order)}).", "",
+           f"**P0 is not \"one model reading everything\".** Every window is about 131k tokens and real tokenizers "
+           f"count about 13% more than Mosaic's estimate, so P0 had to trim the corpus on {n_trim} of the "
+           f"{len(p0_prim)} primary questions, 128k included: it reads the first {kept_share(p0_prim, '128k')} of a "
+           f"128k log and the first {kept_share(p0_prim, '512k')} of a 512k one. Read P0 as *one model reading as "
+           "much of the log as fits*. P0f is the stronger "
+           "baseline: it applies the same plan's filter in code and then makes a single direct call over what is "
+           "left, so P0 → P0f measures filtering, and P0f → P1 measures splitting the work into per-chunk extraction "
+           "plus reducing in code.", ""]
     rows, points = [], []
     for p in order:
         rs = sel(runs[p], *PRIMARY)
@@ -155,9 +165,15 @@ def build_report(root: Path, cfg: dict) -> Path:
     md += ["## Paired comparisons and non-inferiority verdicts", "",
            f"Verdict wording is fixed in advance: non-inferior = \"{WORDING['non-inferior'].format(m=margin)}\"; "
            "superior = \"Better than the baseline\"; inferior = \"Worse than the baseline\"; inconclusive = \"Not "
-           "resolved by this sample\" (never \"equal\"). Differences are B − A in accuracy points. The primary "
-           "analysis is pooled; the per-cell rows (60 questions each) are exploratory and Holm-adjusted.", ""]
-    comps = [("P1", "P0", "Does recursion alone help?"), ("P2", "P1", "Does routing save cost without losing quality?"),
+           "resolved by this sample\" (never \"equal\"). Differences are B − A in accuracy points.", "",
+           "The pooled row (in bold) is the analysis fixed in advance; it is a single test per comparison, so its "
+           "one-sided 95% CI and verdict need no multiplicity correction. The per-cell rows (60 questions each) are "
+           "exploratory: their McNemar p-values are Holm-adjusted across the cells, but their CIs, and so their "
+           "verdicts, are **unadjusted** 95% intervals, and are labelled that way. With 12 cells, an unadjusted "
+           "\"superior\" or \"inferior\" cell should be read as a lead, not a finding.", ""]
+    comps = [("P1", "P0", "Does recursion alone help?"), ("P0f", "P0", "Does filtering in code alone help?"),
+             ("P1", "P0f", "Does splitting the work help beyond filtering?"),
+             ("P2", "P1", "Does routing save cost without losing quality?"),
              ("P3", "P2", "Does learning beat rules?"), ("P3", "P0", "Primary claim: learned recursion vs the baseline")]
     primary_verdict = None
     disc_share = None
@@ -169,7 +185,8 @@ def build_report(root: Path, cfg: dict) -> Path:
         for v in res.get("primary", []) + res["cells"]:
             rows.append([f"**{v.cls} {v.size}**" if "+" in v.cls else f"{v.cls} {v.size}", v.n, pct(v.acc_a), pct(v.acc_b),
                          f"{v.diff:+.1f}", f"[{v.ci_low:+.1f}, {v.ci_high:+.1f}]",
-                         f"{v.p_adj:.3g}" if v.p_adj is not None else f"{v.p_value:.3g}", v.outcome])
+                         f"{v.p_adj:.3g}" if v.p_adj is not None else f"{v.p_value:.3g}",
+                         f"**{v.outcome}**" if "+" in v.cls else f"{v.outcome} (unadjusted)"])
         md += [f"### {b} vs {a}: {q}", "", f"Runs: A = `{MAIN[a]}`, B = `{MAIN[b]}`.", "",
                table(["cell", "n", f"acc {a}", f"acc {b}", "diff", "one-sided 95% CI", "McNemar p (Holm)", "verdict"], rows), ""]
         if (b, a) == ("P3", "P0") and res.get("primary"):
@@ -206,6 +223,14 @@ def build_report(root: Path, cfg: dict) -> Path:
            "slowest map wave + reduce), computed from spans. In virtual time the simulated user asks the next question "
            "a minute after each answer, so rate-limit queueing within a question is real but backlog across questions "
            "is not.", "",
+           "**About the placeholder price.** Qwen 3.8 27B on Cerebras (C5) has no list price we could confirm, so "
+           "`candidates.yaml` carries a placeholder ($0.30 in / $0.60 out per million tokens), and C5 does almost all "
+           f"the work: it is the only model in P0, P0f and P1, and serves {c5_share(runs.get('P3', []))} of P3's "
+           "calls. The absolute dollars scale with that guess; the cost-per-correct *ratios* barely do, because both "
+           "sides of each ratio are priced on the same model, so a common change in C5's price cancels and only its "
+           "input/output split could move them. The table reprices the recorded token counts of the primary set "
+           "under other C5 prices (C4 stays at its published rate):", "",
+           price_sensitivity(runs, root), "",
            table(["cell"] + [f"{p}: $/correct · p95" for p in order], rows), ""]
 
     # ---- router diagnostics ---------------------------------------------------------------
@@ -220,6 +245,55 @@ def build_report(root: Path, cfg: dict) -> Path:
     path = out_dir / "report.md"
     path.write_text("\n".join(md) + "\n")
     return path
+
+
+def kept_share(recs: list[RunRecord], size: str) -> str:
+    """Share of the corpus a trimmed direct call actually saw, from the executor's truncation notes."""
+    import re
+    fr = []
+    for r in recs:
+        if r.size != size:
+            continue
+        for n in r.notes:
+            m = re.search(r"truncated: (\d+)/(\d+) tickets", n)
+            if m:
+                fr.append(int(m.group(1)) / int(m.group(2)))
+    return f"{100 * np.mean(fr):.0f}%" if fr else "all"
+
+
+def c5_share(recs: list[RunRecord]) -> str:
+    sp = [s for r in recs for s in r.spans if s.candidate_id and s.ok]
+    return pct(sum(s.candidate_id == "C5" for s in sp) / max(1, len(sp)))
+
+
+def price_sensitivity(runs: dict[str, list[RunRecord]], root: Path) -> str:
+    from mosaic.config import load_candidates
+    cands = load_candidates(root / "candidates.yaml")
+    prices = [("placeholder", 0.30, 0.60), ("cheap, flat", 0.10, 0.10), ("2x placeholder", 0.60, 1.20),
+              ("output-heavy", 0.10, 0.80), ("input-heavy", 0.80, 0.10)]
+
+    def cpc(recs, pin, pout):
+        total = 0.0
+        for r in recs:
+            for s in r.spans:
+                if not s.candidate_id:
+                    continue
+                if s.candidate_id == "C5":
+                    total += (s.tokens_in * pin + s.tokens_out * pout) / 1e6
+                else:
+                    total += s.cost
+        k = sum(r.correct for r in recs)
+        return total / k if k else float("inf")
+
+    pairs = [(b, a) for b, a in (("P3", "P0"), ("P3", "P0f"), ("P1", "P0f")) if a in runs and b in runs]
+    rows = []
+    for name, pin, pout in prices:
+        row = [f"{name} (${pin:.2f} / ${pout:.2f})"]
+        for b, a in pairs:
+            ca, cb = cpc(sel(runs[a], *PRIMARY), pin, pout), cpc(sel(runs[b], *PRIMARY), pin, pout)
+            row.append(f"{cb / ca:.2f}×" if ca > 0 and np.isfinite(ca) and np.isfinite(cb) else "—")
+        rows.append(row)
+    return table(["C5 price (in / out per M tokens)"] + [f"{b} / {a} cost per correct" for b, a in pairs], rows)
 
 
 def router_section(runs: dict[str, list[RunRecord]], root: Path, cfg: dict) -> list[str]:
@@ -286,7 +360,7 @@ def router_section(runs: dict[str, list[RunRecord]], root: Path, cfg: dict) -> l
         md += ["### Exploration, and what it costs", "",
                "The evaluation run `main-P3` is the learned policy with exploration off. A second run, `main-P3x`, sends "
                f"{cfg['explore_rate']:.0%} of calls to a random feasible candidate and logs the propensity. Exploring "
-               f"cost {100 * (a3 - ax):.1f} accuracy points overall ({pct(a3)} → {pct(ax)}; {hurt} questions flipped "
+               f"cost {100 * (a3 - ax):.1f} accuracy points over all 720 questions ({pct(a3)} → {pct(ax)}; {hurt} questions flipped "
                "from right to wrong): one question fans out into up to ~180 map calls, so per-call exploration "
                "almost always touches some call of a large question, and one bad chunk breaks an exact answer. "
                "Exploration belongs on a profiling stream or under a per-question budget, not on every call.", "",
@@ -313,18 +387,20 @@ def lookup_section(runs: dict[str, list[RunRecord]]) -> list[str]:
 
 
 def live_validation_section(runs_dir: Path, runs: dict[str, list[RunRecord]], margin: float) -> list[str]:
-    """P0 vs P3 on real Cerebras calls, next to what the simulator predicted for the same questions."""
-    files = {p: runs_dir / f"live-{p}-128k.jsonl.gz" for p in ("P0", "P3")}
-    if not all(f.exists() for f in files.values()):
+    """P0, P0f and P3 on real Cerebras calls, next to what the simulator predicted for the same questions."""
+    files = {p: runs_dir / f"live-{p}-128k.jsonl.gz" for p in ("P0", "P0f", "P3")}
+    if not (files["P0"].exists() and files["P3"].exists()):
         return []
-    live = {p: read_run(f)[1] for p, f in files.items()}
+    live = {p: read_run(f)[1] for p, f in files.items() if f.exists()}
     md = ["## Live validation on Cerebras", "",
-          "P0 (C5 reads the corpus, trimmed to its window) and P3 (learned router over C4, C5 and C6, all live) on the "
-          "same 20 questions: the first 10 aggregate and 10 pairwise questions at 128k, real clocks, real quotas. Runs "
-          "`live-P0-128k` and `live-P3-128k`; the simulated columns are the same questions in `precal-*-slice` "
-          "(before recalibration) and `main-P0` / `main-P3` (after); \"agree\" = same right/wrong outcome per question.", ""]
+          "P0 (C5 reads the corpus, trimmed to its window), P0f (the shared plan's filter in code, then one direct "
+          "call on C5) and P3 (learned router over C4, C5 and C6, all live) on the same 20 questions: the first 10 "
+          "aggregate and 10 pairwise questions at 128k, real clocks, real quotas. Runs `live-P0-128k`, "
+          "`live-P0f-128k` and `live-P3-128k`; the simulated columns are the same questions in `precal-*-slice` "
+          "(before recalibration; P0f didn't exist yet) and `main-P0` / `main-P0f` / `main-P3` (after); \"agree\" = "
+          "same right/wrong outcome per question.", ""]
     rows = []
-    for p in ("P0", "P3"):
+    for p in [x for x in ("P0", "P0f", "P3") if x in live]:
         lr = live[p]
         ids = {r.question_id for r in lr}
         sr = {r.question_id: r for r in runs.get(p, []) if r.question_id in ids}
@@ -359,11 +435,31 @@ def live_validation_section(runs_dir: Path, runs: dict[str, list[RunRecord]], ma
            "3× Qwen's. With that in the fit, the learned router's advantage disappeared. Lesson: a learned router finds "
            "and exploits whichever parameter has the least evidence, so every routing gain needs its evidence checked "
            "live.", ""]
-    v = compare(live["P0"], live["P3"], margin=margin, pooled={"all": (("A", "P"), ("128k",))})["all"][0]
-    md += [f"Paired on these 20 questions, P3 − P0 = {v.diff:+.1f} points (one-sided 95% CI [{v.ci_low:+.1f}, "
-           f"{v.ci_high:+.1f}], McNemar p = {v.p_value:.3g}): **{v.outcome}** — "
-           f"\"{WORDING[v.outcome].format(m=margin)}\". With n = 20 this is a check that the simulated verdict "
-           "survives contact with the real API, not a replacement for the 240-question analysis.", ""]
+    pairs = [(b, a) for b, a in (("P3", "P0"), ("P0f", "P0"), ("P3", "P0f")) if a in live and b in live]
+    rows = []
+    for b, a in pairs:
+        v = compare(live[a], live[b], margin=margin, pooled={"all": (("A", "P"), ("128k",))})["all"][0]
+        by_cls = {c: compare(live[a], live[b], margin=margin, pooled={c: ((c,), ("128k",))})[c][0] for c in "AP"}
+        rows.append([f"{b} − {a}", f"{v.diff:+.1f}", f"[{v.ci_low:+.1f}, {v.ci_high:+.1f}]", f"{v.p_value:.3g}",
+                     f"**{v.outcome}**", f"{by_cls['A'].diff:+.0f} / {by_cls['P'].diff:+.0f}"])
+    md += ["Paired on these 20 questions:", "",
+           table(["comparison", "diff (points)", "one-sided 95% CI", "McNemar p", "verdict", "aggregate / pairwise diff"],
+                 rows), "",
+           "With n = 20 these check that the simulated verdicts survive contact with the real API; they don't "
+           "replace the 240-question analysis.", ""]
+    if "P0f" in live:
+        sf = {r.question_id: r.correct for r in runs.get("P0f", [])}
+        sim_f = np.mean([sf[r.question_id] for r in live["P0f"] if r.question_id in sf]) if sf else float("nan")
+        md += ["**Filtering or splitting? Live says splitting.** Filtering in code and then making one direct call "
+               f"(P0f) scored {pct(np.mean([r.correct for r in live['P0f']]))} live, the same as P0. On the 10 "
+               "aggregate questions the filter cut 1,130 tickets to 15–373, yet the single direct call still got 9 "
+               "wrong, even on 15–24 tickets: the model miscounts and mis-sums however short the context. On the 10 "
+               "pairwise questions the plan has no header filter, so P0f read the same trimmed corpus as P0 and got "
+               "0/10, where P3 got 10/10. The whole live gain comes from splitting the work into per-ticket extraction "
+               f"and doing the arithmetic in code. The simulator disagrees: it gave P0f {pct(sim_f)} on these same "
+               "questions and credits filtering with much of the gain overall, because its accuracy curve for direct "
+               "calls (an assumption, not a fit) is too kind to short filtered contexts. Treat the simulated P0f rows "
+               "as an upper bound for filtering.", ""]
     spans = [s for r in live["P3"] for s in r.spans if s.candidate_id and s.ok]
     by = Counter((s.role, s.candidate_id) for s in spans)
     md += ["Live P3 calls by role and candidate: " + ", ".join(f"{r} {c} ×{n}" for (r, c), n in sorted(by.items())) + ".", ""]
@@ -519,7 +615,7 @@ def limitations() -> list[str]:
             "would reproduce the same numbers (0 noise by construction); the live device study is a single pass under "
             "quota, and P0 can't run live on Groq's free plan because the corpus exceeds its 8k-token-per-call cap. "
             "Live run-to-run noise is therefore unmeasured.",
-            "* M3 is not met for a physical reason under these quotas: recursion reads the whole 512k corpus (4× what P0 "
+            "* M3 is not met for a physical reason under these quotas: recursion reads the whole 512k corpus (about 5× what P0 "
             "can even see) and C5 admits 150k tokens a minute, so a full-corpus pairwise question needs about four "
             "minutes of quota however it is routed.",
             "* Cloud energy is not measurable from outside and is not reported. Local CPU energy needs RAPL or "

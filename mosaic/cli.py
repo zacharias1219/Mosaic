@@ -256,12 +256,15 @@ def cmd_eval(a, cfg) -> int:
     _, rb = read_run(runs / f"{a.b}.jsonl.gz")
     res = compare(ra, rb, margin=a.margin, pooled={"primary": (("A", "P"), ("128k", "512k"))})
     print(f"B={a.b} vs A={a.a}, margin {a.margin} points, one-sided {1 - a.alpha:.0%} paired bootstrap")
-    print(f"{'cell':12s} {'n':>4s} {'acc A':>6s} {'acc B':>6s} {'diff':>6s} {'CI low':>7s} {'CI high':>7s} {'p_holm':>7s}  verdict")
+    print("cells are exploratory: p is Holm-adjusted, but the CI and the verdict are unadjusted; the pooled 'primary'")
+    print("row is the single test fixed in advance")
+    print(f"{'cell':12s} {'n':>4s} {'acc A':>6s} {'acc B':>6s} {'diff':>6s} {'CI low':>7s} {'CI high':>7s} {'p':>7s}  verdict")
     rows = res["cells"] + res.get("primary", [])
     for v in rows:
+        cell = "+" not in v.cls
         print(f"{v.cls + ' ' + v.size:12s} {v.n:4d} {v.acc_a:6.1%} {v.acc_b:6.1%} {v.diff:+6.1f} {v.ci_low:+7.1f} "
-              f"{v.ci_high:+7.1f} {v.p_adj if v.p_adj is not None else v.p_value:7.3f}  {v.outcome}: "
-              f"{WORDING[v.outcome].format(m=a.margin)} ({v.why})")
+              f"{v.ci_high:+7.1f} {v.p_adj if v.p_adj is not None else v.p_value:7.3f}  {v.outcome}"
+              f"{' (unadjusted)' if cell else ''}: {WORDING[v.outcome].format(m=a.margin)} ({v.why})")
     prim = res.get("primary", [])
     return EXIT_INCONCLUSIVE if prim and prim[0].outcome == "inconclusive" else EXIT_OK
 
@@ -321,7 +324,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     cal.set_defaults(fn=cmd_calibrate)
 
     r = sub.add_parser("run", help="run a pipeline on a question set")
-    r.add_argument("--pipeline", required=True, choices=["P0", "P1", "P2", "P3"])
+    r.add_argument("--pipeline", required=True, choices=["P0", "P0f", "P1", "P2", "P3"])
     r.add_argument("--sizes", default=",".join(cfg["eval"]["sizes"]))
     r.add_argument("--split", default="eval", choices=["eval", "profiling"])
     r.add_argument("--classes", default="LAP")

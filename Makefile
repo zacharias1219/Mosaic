@@ -31,8 +31,8 @@ profile:                    ## latency profiles + routing labels on the profilin
 train:
 	mosaic train-router
 
-eval:                       ## the four pipelines on all 720 evaluation questions (simulated main pool, virtual time)
-	for p in P0 P1 P2; do mosaic run --pipeline $$p --run-id main-$$p --progress-every 120 || exit 1; done
+eval:                       ## the five pipelines on all 720 evaluation questions (simulated main pool, virtual time)
+	for p in P0 P0f P1 P2; do mosaic run --pipeline $$p --run-id main-$$p --progress-every 120 || exit 1; done
 	mosaic run --pipeline P3 --run-id main-P3 --explore 0 --progress-every 120
 	mosaic run --pipeline P3 --run-id main-P3x --explore 0.05 --progress-every 120
 	mosaic eval --a main-P0 --b main-P3 || true

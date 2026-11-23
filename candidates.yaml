@@ -6,9 +6,10 @@
 # used only for comparison; free-tier calls are priced at list price (PRD 11). Qwen 3.8 27B on
 # Cerebras has no public list price we could confirm: its price is a placeholder.
 #
-# Latency priors (ttft_ms, prefill_tps, tps_out) are used before profiling exists. Groq and
-# local-CPU priors are overwritten by measured profiles; Cerebras priors are vendor-claim-level
-# guesses because Cerebras was not reachable from the build machine.
+# Latency priors (ttft_ms, prefill_tps, tps_out) are used before profiling exists. `mosaic profile
+# --from-runs` overwrites them with live measurements for every device (Groq, Cerebras, local CPU).
+# A speed the live data can't identify keeps its prior: C4's prefill is too fast to separate from
+# its base latency in 22 calls, so it stays at the vendor-level figure.
 #
 # `sim:` holds the simulator's error model for each weight family (see mosaic/providers/sim.py).
 # `mosaic calibrate` fits per-field error rates (err_category, err_refund, err_sentiment), drop and

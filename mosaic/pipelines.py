@@ -4,6 +4,9 @@ P0 direct: the baseline candidate reads the whole corpus (truncated to its windo
 P1 recursive, fixed: shared plan; every executor call on the baseline candidate (R0).
 P2 recursive, rules: shared plan; rule-table router (R1).
 P3 recursive, learned: shared plan; calibrated learned router (R2).
+P0f filtered direct: shared plan's filter applied in code, then ONE direct call over what is left (no
+    splitting). It separates the gain from filtering in code (P0 -> P0f) from the gain from splitting the
+    work into per-chunk extraction and reducing in code (P0f -> P1).
 """
 from __future__ import annotations
 
@@ -27,7 +30,7 @@ from mosaic.tokens import count_tokens
 from mosaic.trace import critical_path_ms
 from mosaic.types import Question, RunRecord, Ticket
 
-PIPELINES = ("P0", "P1", "P2", "P3")
+PIPELINES = ("P0", "P0f", "P1", "P2", "P3")
 
 
 def project(plan: Plan, row: dict) -> tuple:
@@ -120,6 +123,8 @@ async def run_question(name: str, q: Question, ctx: RunContext, at: float) -> Ru
                 notes.append(f"planner failed twice ({e}); using fallback recursion plan")
                 plan, t = reference_plan(q).model_copy(update={"strategy": "recurse"}) if q.cls != "L" else reference_plan(q), at
                 t = max(t, max((s.end_ms for s in tr.spans.get(q.question_id, [])), default=at))
+        if name == "P0f":  # same plan, same code filter, but one direct call instead of map + reduce
+            plan = plan.model_copy(update={"strategy": "direct"})
         plan_d = plan.model_dump()
         res = await ex.run(plan, lines, q.text, q.answer_type, t, q.question_id, root.span_id)
     notes += res.notes

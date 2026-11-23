@@ -49,15 +49,30 @@ a constant base-rate predictor, and isotonic scaling only when a held-out bin is
 scaling lowers held-out Brier. With fewer than 30 rows the predictor is the base rate.
 **Alternative:** gradient boosting (PRD open question 3). It isn't worth it at a few thousand labels per candidate,
 and the coefficients are the explanation.
-**Evidence (a negative result):** on held-out profiling data the C6 mapper and direct predictors beat the base
-rate, but the C4 and C5 mapper predictors do not (Brier 0.1430 vs 0.1424 and 0.0445 vs 0.0443), and C5's worst
-reliability bin is 21 points off, so M5 is not met. Adding products of features (tickets × fields) did not change
-that beyond split noise. The live data explains why: map errors were systematic per phrasing, and whether a chunk
-holds a "two-factor codes" ticket is invisible to call-level features. The learned router still matches the rule
-router (82.2% vs 82.2% overall; non-inferior on the primary set) because the decisions that matter, keeping the
-CPU off large chunks and putting C5 on bulk maps, are easy. As the PRD's gate 5 says, the honest position is: ship
-the rule router, and treat per-template difficulty as the feature to learn next. The test suite also checks that
-on pure-noise labels the report says the model loses to the base rate rather than hiding it.
+**Evidence (current runs, `router/model.json`; held-out profiling data):**
+
+| predictor | Brier | constant | beats constant | worst bin |
+|---|---|---|---|---|
+| mapper C5 (Qwen 27B, Cerebras) | 0.0432 | 0.0668 | yes (isotonic applied) | 2.1 pts |
+| mapper C4 (gpt-oss-120b, Cerebras) | 0.1662 | 0.1937 | yes | 12.4 pts |
+| mapper C6 (CPU) | 0.0088 | 0.0128 | yes | 13.1 pts |
+| direct C6 | 0.1700 | 0.1760 | yes | 10.1 pts |
+| direct C4, direct C5 | 0.0051, 0.0008 | the same | no (a tie: base rates ~0.98) | 7.1, 2.6 pts |
+
+All three mapper predictors beat the base rate, and C5's (the one that routes almost all the work) is well
+calibrated. M5 is still not met: C6's mapper bin is 13.1 points off and C4's 12.4, above the 10-point bar.
+History: the first version, calibrated from Groq calls only, did *not* beat the constant for C4 and C5 (Brier 0.1430 vs
+0.1424 and 0.0445 vs 0.0443). That is because the per-field error rates were then all small and similar, so whether a chunk came
+back right was close to noise. The live Cerebras data (D16) showed tone errors at 5–15% per ticket against category
+errors near 0.1–1%, which makes the schema features predictive.
+**What it buys the router:** little. Over all 720 questions P3 scores 80.0%, the same as fixed P1 (80.0%) and just
+above the rule router P2 (79.6%); on the 240-question primary set it is 59.6% vs P1's 60.0% and P2's 57.9% (P3 vs P2
+non-inferior). Where it does act, it can hurt: on pairwise questions at 128k it sends 9% of map chunks to gpt-oss-120b
+when neither model clears the bar, because the C4 predictor (the 12-point bin) ranks C4 above Qwen there. Those chunks
+are right 76% of the time against Qwen's 97%, and the cell drops from 91.7% to 76.7% with no latency gain. The
+honest position remains the PRD's gate 5: the rule router is as good, and per-template difficulty is the feature to
+learn next. The test suite also checks that on pure-noise labels the report says the model loses to the base rate
+rather than hiding it.
 
 ## D6. Rate limits and quotas are routing inputs
 **Chosen:** one limiter per candidate enforces requests and tokens per minute (sliding window), concurrency and
@@ -116,6 +131,10 @@ that did hurt was in the category templates (D9), which is also the most realist
 **Chosen:** as in the PRD: one-sided 95% paired bootstrap on accuracy differences, McNemar's exact test, Holm across
 the per-cell tests, verdict wording fixed in advance. The primary analysis pools A and P at 128k and 512k (240
 pairs).
+**Multiplicity:** the pooled primary comparison is the single test fixed in advance, so its CI is not adjusted. The
+per-cell rows are exploratory: their McNemar p-values are Holm-adjusted across cells, but their CIs and verdicts are
+unadjusted 95% intervals, and the report and `mosaic eval` label those verdicts "(unadjusted)" rather than imply a
+correction they don't carry.
 **Evidence:** report § Sample size states the discordance actually observed and what a 2-point margin would cost.
 
 ## D13. Every number from records; every record replayable
@@ -139,17 +158,18 @@ the set predicted to clear τ. If every good candidate is queued, the call waits
 below the bar.
 **Evidence:** after Cerebras' limits were tightened to 85%, pairwise questions at 128k+ saturated C5's token budget.
 The old capacity step then left only the idle CPU model, which won as "highest predicted quality" at about 2%, and
-46 questions turned wrong (P2 fell from 85.8% to 80.6%). A regression test covers it
+46 questions turned wrong (P2 fell from 85.8% to 80.6% over all 720 questions). A regression test covers it
 (`test_queue_never_pushes_a_call_below_the_bar`).
 
 ## D16. Validate the simulator live, and check every routing gain's evidence
-**Chosen:** a live slice on the real main pool (P0 vs P3, 20 questions at 128k, about $0.90), compared per question
+**Chosen:** a live slice on the real main pool (P0 vs P3, 20 questions at 128k, about $0.90; P0f added later for $0.05 of new calls), compared per question
 with what the simulator had predicted before seeing it (`precal-*-slice`); then recalibrate on it.
-**Evidence:** the simulator was optimistic: 80% predicted vs 60% live for P3. Six of P3's eight live misses were tone
+**Evidence:** the simulator was optimistic: on the 20 live-slice questions it predicted 80% for P3, and live gave 60%. Six of P3's eight live misses were tone
 counts, and the tone error rate had rested on 3 observations. After recalibrating, the learned router appeared to
-beat the rules (82.2% vs 79.6%), but 22 of its 31 wins came from sending tone chunks to gpt-oss-120b, whose tone
+beat the rules (82.2% vs 79.6% over all 720 questions), but 22 of its 31 wins came from sending tone chunks to gpt-oss-120b, whose tone
 rate rested on 6 observations. A targeted live run on those tone chunks (0/7 for C4, 1/7 for C5) measured C4's tone
-error at 15% per ticket, 3× Qwen's, and the gain vanished (P3 80.0% = P1 80.0%). A learned router will find whichever
+error at 15% per ticket, 3× Qwen's, and the gain vanished (all 720 questions: P3 80.0% = P1 80.0%; 240-question
+primary set: P3 59.6% vs P1 60.0%). A learned router will find whichever
 parameter has the least evidence; every gain it shows needs that evidence checked.
 **Data finding:** tone labels are ambiguous by construction. Every ticket reports a problem, and "positive" differs
 only by a polite closing line, so the tone-count template measures label ambiguity as much as model quality.
@@ -161,3 +181,19 @@ candidate that served it live, because live routing depended on wall-clock quota
 chunks to the other candidate, so both answers were cached and nothing failed, but the cost differed by 2%. That run
 predates request IDs and stays 19/20 exact in M6; later live runs replay exactly (test
 `test_offline_replay_follows_recorded_live_routing`).
+
+## D18. A stronger baseline: filter in code, then one direct call (P0f)
+**Why:** P0 had to trim the corpus on all 240 primary questions, 128k included (real tokenizers count ~13% more than
+the proxy, D14), so "beats one model reading everything" overstated it: P0 is *one model reading as much of the log as
+fits*. The obvious objection is that recursion's gain might come from filtering in code, not from splitting the work.
+**Chosen:** P0f uses the same shared plan as P1–P3, applies its header filter in code, and then makes a single direct
+call on C5 over what is left. P0 → P0f isolates filtering; P0f → P1 isolates splitting into per-ticket extraction
+plus reducing in code.
+**Evidence (live, 20 questions at 128k):** P0f 5%, P0 5% (right on the same single question), P3 60%. On the 10
+aggregate questions the filter cut 1,130 tickets to 15–373, and the one direct call still got 9 wrong, even over
+15–24 tickets. The 10 pairwise plans have no header filter, so P0f read the same trimmed corpus and got 0/10, where
+P3 got 10/10. (Those 10 pairwise calls are byte-identical requests to P0's, so they replayed from the cache: the
+two baselines necessarily give the same answer there.) Live, the whole gain is splitting.
+**The simulator disagrees, and live wins:** simulated P0f scores 25.0% on the primary set (P0 2.9%, P1 60.0%) and
+35% on the live-slice questions. Its accuracy curve for direct calls is an assumption, and it is too kind to short
+filtered contexts. The report flags the simulated P0f rows as an upper bound for filtering.

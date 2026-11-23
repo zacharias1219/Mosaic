@@ -12,18 +12,21 @@ Commit `e48c982` · data hash `98ad06dd4429c091` · seed 42 · margin 5 points �
 
 ## Headline: aggregate and pairwise questions at 128k and 512k
 
-Pooled over the primary set (classes A and P, sizes 128k and 512k; runs main-P0, main-P1, main-P2, main-P3). P0 cannot read 512k (every window is about 131k tokens), so at 512k it answers from a corpus truncated to its window; that is recorded per question.
+Pooled over the primary set (classes A and P, sizes 128k and 512k, 240 questions; runs main-P0, main-P0f, main-P1, main-P2, main-P3).
+
+**P0 is not "one model reading everything".** Every window is about 131k tokens and real tokenizers count about 13% more than Mosaic's estimate, so P0 had to trim the corpus on 240 of the 240 primary questions, 128k included: it reads the first 84% of a 128k log and the first 21% of a 512k one. Read P0 as *one model reading as much of the log as fits*. P0f is the stronger baseline: it applies the same plan's filter in code and then makes a single direct call over what is left, so P0 → P0f measures filtering, and P0f → P1 measures splitting the work into per-chunk extraction plus reducing in code.
 
 | pipeline | n | accuracy [Wilson 95%] | cost / correct | 95% CI | p50 latency | p95 latency | truncated | malformed |
 |---|---|---|---|---|---|---|---|---|
-| P0 direct | 240 | 2.9% [1.4%, 5.9%] | $1.1007 | [$0.5927, $3.8523] | 8.6 s | 8.8 s | 240 | 0 |
+| P0 one direct call, corpus trimmed to the window | 240 | 2.9% [1.4%, 5.9%] | $1.1007 | [$0.5927, $3.8523] | 8.6 s | 8.8 s | 240 | 0 |
+| P0f filter in code, then one direct call | 240 | 25.0% [19.9%, 30.8%] | $0.0884 | [$0.0679, $0.1171] | 9.0 s | 9.3 s | 136 | 0 |
 | P1 recursive, fixed | 240 | 60.0% [53.7%, 66.0%] | $0.1270 | [$0.1074, $0.1507] | 61.5 s | 301.4 s | 1 | 0 |
 | P2 recursive, rules | 240 | 57.9% [51.6%, 64.0%] | $0.1329 | [$0.1128, $0.1572] | 61.5 s | 300.8 s | 1 | 0 |
 | P3 recursive, learned | 240 | 59.6% [53.3%, 65.6%] | $0.1299 | [$0.1108, $0.1531] | 61.5 s | 300.8 s | 1 | 0 |
 
 ![Pareto](pareto.svg)
 
-Non-dominated on (cost per correct, p95 latency, accuracy): P0, P1, P3. Baseline: P0.
+Non-dominated on (cost per correct, p95 latency, accuracy): P0, P0f, P1, P3. Baseline: P0.
 
 ## Accuracy by class and size
 
@@ -32,6 +35,7 @@ Non-dominated on (cost per correct, p95 latency, accuracy): P0, P1, P3. Baseline
 | pipeline | 8k | 32k | 128k | 512k |
 |---|---|---|---|---|
 | P0 | 91.7% [81.9%–96.4%] | 81.7% [70.1%–89.4%] | 63.3% [50.7%–74.4%] | 15.0% [8.1%–26.1%] |
+| P0f | 96.7% [88.6%–99.1%] | 100.0% [94.0%–100.0%] | 95.0% [86.3%–98.3%] | 85.0% [73.9%–91.9%] |
 | P1 | 96.7% [88.6%–99.1%] | 100.0% [94.0%–100.0%] | 95.0% [86.3%–98.3%] | 85.0% [73.9%–91.9%] |
 | P2 | 96.7% [88.6%–99.1%] | 100.0% [94.0%–100.0%] | 95.0% [86.3%–98.3%] | 86.7% [75.8%–93.1%] |
 | P3 | 96.7% [88.6%–99.1%] | 100.0% [94.0%–100.0%] | 95.0% [86.3%–98.3%] | 86.7% [75.8%–93.1%] |
@@ -43,6 +47,7 @@ Non-dominated on (cost per correct, p95 latency, accuracy): P0, P1, P3. Baseline
 | pipeline | 8k | 32k | 128k | 512k |
 |---|---|---|---|---|
 | P0 | 78.3% [66.4%–86.9%] | 31.7% [21.3%–44.2%] | 5.0% [1.7%–13.7%] | 1.7% [0.3%–8.9%] |
+| P0f | 90.0% [79.9%–95.3%] | 86.7% [75.8%–93.1%] | 60.0% [47.4%–71.4%] | 35.0% [24.2%–47.6%] |
 | P1 | 86.7% [75.8%–93.1%] | 66.7% [54.1%–77.3%] | 51.7% [39.3%–63.8%] | 36.7% [25.6%–49.3%] |
 | P2 | 88.3% [77.8%–94.2%] | 66.7% [54.1%–77.3%] | 51.7% [39.3%–63.8%] | 38.3% [27.1%–51.0%] |
 | P3 | 86.7% [75.8%–93.1%] | 66.7% [54.1%–77.3%] | 51.7% [39.3%–63.8%] | 38.3% [27.1%–51.0%] |
@@ -54,6 +59,7 @@ Non-dominated on (cost per correct, p95 latency, accuracy): P0, P1, P3. Baseline
 | pipeline | 8k | 32k | 128k | 512k |
 |---|---|---|---|---|
 | P0 | 41.7% [30.1%–54.3%] | 10.0% [4.7%–20.1%] | 5.0% [1.7%–13.7%] | 0.0% [0.0%–6.0%] |
+| P0f | 36.7% [25.6%–49.3%] | 8.3% [3.6%–18.1%] | 5.0% [1.7%–13.7%] | 0.0% [0.0%–6.0%] |
 | P1 | 95.0% [86.3%–98.3%] | 95.0% [86.3%–98.3%] | 91.7% [81.9%–96.4%] | 60.0% [47.4%–71.4%] |
 | P2 | 95.0% [86.3%–98.3%] | 95.0% [86.3%–98.3%] | 76.7% [64.6%–85.6%] | 65.0% [52.4%–75.8%] |
 | P3 | 95.0% [86.3%–98.3%] | 95.0% [86.3%–98.3%] | 76.7% [64.6%–85.6%] | 71.7% [59.2%–81.5%] |
@@ -62,7 +68,9 @@ Non-dominated on (cost per correct, p95 latency, accuracy): P0, P1, P3. Baseline
 
 ## Paired comparisons and non-inferiority verdicts
 
-Verdict wording is fixed in advance: non-inferior = "No worse than the baseline within 5.0 points"; superior = "Better than the baseline"; inferior = "Worse than the baseline"; inconclusive = "Not resolved by this sample" (never "equal"). Differences are B − A in accuracy points. The primary analysis is pooled; the per-cell rows (60 questions each) are exploratory and Holm-adjusted.
+Verdict wording is fixed in advance: non-inferior = "No worse than the baseline within 5.0 points"; superior = "Better than the baseline"; inferior = "Worse than the baseline"; inconclusive = "Not resolved by this sample" (never "equal"). Differences are B − A in accuracy points.
+
+The pooled row (in bold) is the analysis fixed in advance; it is a single test per comparison, so its one-sided 95% CI and verdict need no multiplicity correction. The per-cell rows (60 questions each) are exploratory: their McNemar p-values are Holm-adjusted across the cells, but their CIs, and so their verdicts, are **unadjusted** 95% intervals, and are labelled that way. With 12 cells, an unadjusted "superior" or "inferior" cell should be read as a lead, not a finding.
 
 ### P1 vs P0: Does recursion alone help?
 
@@ -70,19 +78,59 @@ Runs: A = `main-P0`, B = `main-P1`.
 
 | cell | n | acc P0 | acc P1 | diff | one-sided 95% CI | McNemar p (Holm) | verdict |
 |---|---|---|---|---|---|---|---|
-| **A+P 128k+512k** | 240 | 2.9% | 60.0% | +57.1 | [+51.7, +62.1] | 4.02e-40 | superior |
-| A 8k | 60 | 78.3% | 86.7% | +8.3 | [-3.3, +20.0] | 0.665 | non-inferior |
-| A 32k | 60 | 31.7% | 66.7% | +35.0 | [+21.7, +48.3] | 0.000769 | superior |
-| A 128k | 60 | 5.0% | 51.7% | +46.7 | [+35.0, +58.3] | 4.62e-07 | superior |
-| A 512k | 60 | 1.7% | 36.7% | +35.0 | [+25.0, +45.0] | 5.72e-06 | superior |
-| L 8k | 60 | 91.7% | 96.7% | +5.0 | [-1.7, +11.7] | 0.665 | non-inferior |
-| L 32k | 60 | 81.7% | 100.0% | +18.3 | [+10.0, +26.7] | 0.00293 | superior |
-| L 128k | 60 | 63.3% | 95.0% | +31.7 | [+20.0, +43.3] | 0.00033 | superior |
-| L 512k | 60 | 15.0% | 85.0% | +70.0 | [+58.3, +80.0] | 2.91e-10 | superior |
-| P 8k | 60 | 41.7% | 95.0% | +53.3 | [+40.0, +65.0] | 4.67e-07 | superior |
-| P 32k | 60 | 10.0% | 95.0% | +85.0 | [+76.7, +93.3] | 1.32e-13 | superior |
-| P 128k | 60 | 5.0% | 91.7% | +86.7 | [+80.0, +93.3] | 5.33e-15 | superior |
-| P 512k | 60 | 0.0% | 60.0% | +60.0 | [+50.0, +70.0] | 2.91e-10 | superior |
+| **A+P 128k+512k** | 240 | 2.9% | 60.0% | +57.1 | [+51.7, +62.1] | 4.02e-40 | **superior** |
+| A 8k | 60 | 78.3% | 86.7% | +8.3 | [-3.3, +20.0] | 0.665 | non-inferior (unadjusted) |
+| A 32k | 60 | 31.7% | 66.7% | +35.0 | [+21.7, +48.3] | 0.000769 | superior (unadjusted) |
+| A 128k | 60 | 5.0% | 51.7% | +46.7 | [+35.0, +58.3] | 4.62e-07 | superior (unadjusted) |
+| A 512k | 60 | 1.7% | 36.7% | +35.0 | [+25.0, +45.0] | 5.72e-06 | superior (unadjusted) |
+| L 8k | 60 | 91.7% | 96.7% | +5.0 | [-1.7, +11.7] | 0.665 | non-inferior (unadjusted) |
+| L 32k | 60 | 81.7% | 100.0% | +18.3 | [+10.0, +26.7] | 0.00293 | superior (unadjusted) |
+| L 128k | 60 | 63.3% | 95.0% | +31.7 | [+20.0, +43.3] | 0.00033 | superior (unadjusted) |
+| L 512k | 60 | 15.0% | 85.0% | +70.0 | [+58.3, +80.0] | 2.91e-10 | superior (unadjusted) |
+| P 8k | 60 | 41.7% | 95.0% | +53.3 | [+40.0, +65.0] | 4.67e-07 | superior (unadjusted) |
+| P 32k | 60 | 10.0% | 95.0% | +85.0 | [+76.7, +93.3] | 1.32e-13 | superior (unadjusted) |
+| P 128k | 60 | 5.0% | 91.7% | +86.7 | [+80.0, +93.3] | 5.33e-15 | superior (unadjusted) |
+| P 512k | 60 | 0.0% | 60.0% | +60.0 | [+50.0, +70.0] | 2.91e-10 | superior (unadjusted) |
+
+### P0f vs P0: Does filtering in code alone help?
+
+Runs: A = `main-P0`, B = `main-P0f`.
+
+| cell | n | acc P0 | acc P0f | diff | one-sided 95% CI | McNemar p (Holm) | verdict |
+|---|---|---|---|---|---|---|---|
+| **A+P 128k+512k** | 240 | 2.9% | 25.0% | +22.1 | [+17.5, +26.7] | 3.11e-15 | **superior** |
+| A 8k | 60 | 78.3% | 90.0% | +11.7 | [+1.7, +21.7] | 0.711 | superior (unadjusted) |
+| A 32k | 60 | 31.7% | 86.7% | +55.0 | [+43.3, +66.7] | 1.02e-07 | superior (unadjusted) |
+| A 128k | 60 | 5.0% | 60.0% | +55.0 | [+43.3, +66.7] | 2.31e-08 | superior (unadjusted) |
+| A 512k | 60 | 1.7% | 35.0% | +33.3 | [+23.3, +43.3] | 1.72e-05 | superior (unadjusted) |
+| L 8k | 60 | 91.7% | 96.7% | +5.0 | [-1.7, +11.7] | 1 | non-inferior (unadjusted) |
+| L 32k | 60 | 81.7% | 100.0% | +18.3 | [+10.0, +26.7] | 0.00684 | superior (unadjusted) |
+| L 128k | 60 | 63.3% | 95.0% | +31.7 | [+20.0, +43.3] | 0.000528 | superior (unadjusted) |
+| L 512k | 60 | 15.0% | 85.0% | +70.0 | [+58.3, +80.0] | 3.69e-10 | superior (unadjusted) |
+| P 8k | 60 | 41.7% | 36.7% | -5.0 | [-10.0, -1.7] | 1 | inconclusive (unadjusted) |
+| P 32k | 60 | 10.0% | 8.3% | -1.7 | [-5.0, +0.0] | 1 | inconclusive (unadjusted) |
+| P 128k | 60 | 5.0% | 5.0% | +0.0 | [+0.0, +0.0] | 1 | non-inferior (unadjusted) |
+| P 512k | 60 | 0.0% | 0.0% | +0.0 | [+0.0, +0.0] | 1 | non-inferior (unadjusted) |
+
+### P1 vs P0f: Does splitting the work help beyond filtering?
+
+Runs: A = `main-P0f`, B = `main-P1`.
+
+| cell | n | acc P0f | acc P1 | diff | one-sided 95% CI | McNemar p (Holm) | verdict |
+|---|---|---|---|---|---|---|---|
+| **A+P 128k+512k** | 240 | 25.0% | 60.0% | +35.0 | [+27.9, +42.1] | 2.71e-13 | **superior** |
+| A 8k | 60 | 90.0% | 86.7% | -3.3 | [-11.7, +3.3] | 1 | inconclusive (unadjusted) |
+| A 32k | 60 | 86.7% | 66.7% | -20.0 | [-31.7, -8.3] | 0.0945 | inferior (unadjusted) |
+| A 128k | 60 | 60.0% | 51.7% | -8.3 | [-21.7, +6.7] | 1 | inconclusive (unadjusted) |
+| A 512k | 60 | 35.0% | 36.7% | +1.7 | [-11.7, +15.0] | 1 | inconclusive (unadjusted) |
+| L 8k | 60 | 96.7% | 96.7% | +0.0 | [+0.0, +0.0] | 1 | non-inferior (unadjusted) |
+| L 32k | 60 | 100.0% | 100.0% | +0.0 | [+0.0, +0.0] | 1 | non-inferior (unadjusted) |
+| L 128k | 60 | 95.0% | 95.0% | +0.0 | [+0.0, +0.0] | 1 | non-inferior (unadjusted) |
+| L 512k | 60 | 85.0% | 85.0% | +0.0 | [+0.0, +0.0] | 1 | non-inferior (unadjusted) |
+| P 8k | 60 | 36.7% | 95.0% | +58.3 | [+48.3, +68.3] | 5.24e-10 | superior (unadjusted) |
+| P 32k | 60 | 8.3% | 95.0% | +86.7 | [+80.0, +93.3] | 5.33e-15 | superior (unadjusted) |
+| P 128k | 60 | 5.0% | 91.7% | +86.7 | [+80.0, +93.3] | 5.33e-15 | superior (unadjusted) |
+| P 512k | 60 | 0.0% | 60.0% | +60.0 | [+50.0, +70.0] | 2.91e-10 | superior (unadjusted) |
 
 ### P2 vs P1: Does routing save cost without losing quality?
 
@@ -90,19 +138,19 @@ Runs: A = `main-P1`, B = `main-P2`.
 
 | cell | n | acc P1 | acc P2 | diff | one-sided 95% CI | McNemar p (Holm) | verdict |
 |---|---|---|---|---|---|---|---|
-| **A+P 128k+512k** | 240 | 60.0% | 57.9% | -2.1 | [-5.4, +1.2] | 0.405 | inconclusive |
-| A 8k | 60 | 86.7% | 88.3% | +1.7 | [+0.0, +5.0] | 1 | non-inferior |
-| A 32k | 60 | 66.7% | 66.7% | +0.0 | [+0.0, +0.0] | 1 | non-inferior |
-| A 128k | 60 | 51.7% | 51.7% | +0.0 | [+0.0, +0.0] | 1 | non-inferior |
-| A 512k | 60 | 36.7% | 38.3% | +1.7 | [-5.0, +8.3] | 1 | inconclusive |
-| L 8k | 60 | 96.7% | 96.7% | +0.0 | [+0.0, +0.0] | 1 | non-inferior |
-| L 32k | 60 | 100.0% | 100.0% | +0.0 | [+0.0, +0.0] | 1 | non-inferior |
-| L 128k | 60 | 95.0% | 95.0% | +0.0 | [+0.0, +0.0] | 1 | non-inferior |
-| L 512k | 60 | 85.0% | 86.7% | +1.7 | [+0.0, +5.0] | 1 | non-inferior |
-| P 8k | 60 | 95.0% | 95.0% | +0.0 | [+0.0, +0.0] | 1 | non-inferior |
-| P 32k | 60 | 95.0% | 95.0% | +0.0 | [+0.0, +0.0] | 1 | non-inferior |
-| P 128k | 60 | 91.7% | 76.7% | -15.0 | [-23.3, -8.3] | 0.0469 | inferior |
-| P 512k | 60 | 60.0% | 65.0% | +5.0 | [-3.3, +13.3] | 1 | non-inferior |
+| **A+P 128k+512k** | 240 | 60.0% | 57.9% | -2.1 | [-5.4, +1.2] | 0.405 | **inconclusive** |
+| A 8k | 60 | 86.7% | 88.3% | +1.7 | [+0.0, +5.0] | 1 | non-inferior (unadjusted) |
+| A 32k | 60 | 66.7% | 66.7% | +0.0 | [+0.0, +0.0] | 1 | non-inferior (unadjusted) |
+| A 128k | 60 | 51.7% | 51.7% | +0.0 | [+0.0, +0.0] | 1 | non-inferior (unadjusted) |
+| A 512k | 60 | 36.7% | 38.3% | +1.7 | [-5.0, +8.3] | 1 | inconclusive (unadjusted) |
+| L 8k | 60 | 96.7% | 96.7% | +0.0 | [+0.0, +0.0] | 1 | non-inferior (unadjusted) |
+| L 32k | 60 | 100.0% | 100.0% | +0.0 | [+0.0, +0.0] | 1 | non-inferior (unadjusted) |
+| L 128k | 60 | 95.0% | 95.0% | +0.0 | [+0.0, +0.0] | 1 | non-inferior (unadjusted) |
+| L 512k | 60 | 85.0% | 86.7% | +1.7 | [+0.0, +5.0] | 1 | non-inferior (unadjusted) |
+| P 8k | 60 | 95.0% | 95.0% | +0.0 | [+0.0, +0.0] | 1 | non-inferior (unadjusted) |
+| P 32k | 60 | 95.0% | 95.0% | +0.0 | [+0.0, +0.0] | 1 | non-inferior (unadjusted) |
+| P 128k | 60 | 91.7% | 76.7% | -15.0 | [-23.3, -8.3] | 0.0469 | inferior (unadjusted) |
+| P 512k | 60 | 60.0% | 65.0% | +5.0 | [-3.3, +13.3] | 1 | non-inferior (unadjusted) |
 
 ### P3 vs P2: Does learning beat rules?
 
@@ -110,19 +158,19 @@ Runs: A = `main-P2`, B = `main-P3`.
 
 | cell | n | acc P2 | acc P3 | diff | one-sided 95% CI | McNemar p (Holm) | verdict |
 |---|---|---|---|---|---|---|---|
-| **A+P 128k+512k** | 240 | 57.9% | 59.6% | +1.7 | [-0.4, +3.8] | 0.344 | non-inferior |
-| A 8k | 60 | 88.3% | 86.7% | -1.7 | [-6.7, +3.3] | 1 | inconclusive |
-| A 32k | 60 | 66.7% | 66.7% | +0.0 | [-3.3, +3.3] | 1 | non-inferior |
-| A 128k | 60 | 51.7% | 51.7% | +0.0 | [+0.0, +0.0] | 1 | non-inferior |
-| A 512k | 60 | 38.3% | 38.3% | +0.0 | [+0.0, +0.0] | 1 | non-inferior |
-| L 8k | 60 | 96.7% | 96.7% | +0.0 | [+0.0, +0.0] | 1 | non-inferior |
-| L 32k | 60 | 100.0% | 100.0% | +0.0 | [+0.0, +0.0] | 1 | non-inferior |
-| L 128k | 60 | 95.0% | 95.0% | +0.0 | [+0.0, +0.0] | 1 | non-inferior |
-| L 512k | 60 | 86.7% | 86.7% | +0.0 | [+0.0, +0.0] | 1 | non-inferior |
-| P 8k | 60 | 95.0% | 95.0% | +0.0 | [+0.0, +0.0] | 1 | non-inferior |
-| P 32k | 60 | 95.0% | 95.0% | +0.0 | [+0.0, +0.0] | 1 | non-inferior |
-| P 128k | 60 | 76.7% | 76.7% | +0.0 | [-3.3, +3.3] | 1 | non-inferior |
-| P 512k | 60 | 65.0% | 71.7% | +6.7 | [+0.0, +15.0] | 1 | non-inferior |
+| **A+P 128k+512k** | 240 | 57.9% | 59.6% | +1.7 | [-0.4, +3.8] | 0.344 | **non-inferior** |
+| A 8k | 60 | 88.3% | 86.7% | -1.7 | [-6.7, +3.3] | 1 | inconclusive (unadjusted) |
+| A 32k | 60 | 66.7% | 66.7% | +0.0 | [-3.3, +3.3] | 1 | non-inferior (unadjusted) |
+| A 128k | 60 | 51.7% | 51.7% | +0.0 | [+0.0, +0.0] | 1 | non-inferior (unadjusted) |
+| A 512k | 60 | 38.3% | 38.3% | +0.0 | [+0.0, +0.0] | 1 | non-inferior (unadjusted) |
+| L 8k | 60 | 96.7% | 96.7% | +0.0 | [+0.0, +0.0] | 1 | non-inferior (unadjusted) |
+| L 32k | 60 | 100.0% | 100.0% | +0.0 | [+0.0, +0.0] | 1 | non-inferior (unadjusted) |
+| L 128k | 60 | 95.0% | 95.0% | +0.0 | [+0.0, +0.0] | 1 | non-inferior (unadjusted) |
+| L 512k | 60 | 86.7% | 86.7% | +0.0 | [+0.0, +0.0] | 1 | non-inferior (unadjusted) |
+| P 8k | 60 | 95.0% | 95.0% | +0.0 | [+0.0, +0.0] | 1 | non-inferior (unadjusted) |
+| P 32k | 60 | 95.0% | 95.0% | +0.0 | [+0.0, +0.0] | 1 | non-inferior (unadjusted) |
+| P 128k | 60 | 76.7% | 76.7% | +0.0 | [-3.3, +3.3] | 1 | non-inferior (unadjusted) |
+| P 512k | 60 | 65.0% | 71.7% | +6.7 | [+0.0, +15.0] | 1 | non-inferior (unadjusted) |
 
 ### P3 vs P0: Primary claim: learned recursion vs the baseline
 
@@ -130,19 +178,19 @@ Runs: A = `main-P0`, B = `main-P3`.
 
 | cell | n | acc P0 | acc P3 | diff | one-sided 95% CI | McNemar p (Holm) | verdict |
 |---|---|---|---|---|---|---|---|
-| **A+P 128k+512k** | 240 | 2.9% | 59.6% | +56.7 | [+51.2, +62.1] | 7.98e-40 | superior |
-| A 8k | 60 | 78.3% | 86.7% | +8.3 | [-3.3, +20.0] | 0.665 | non-inferior |
-| A 32k | 60 | 31.7% | 66.7% | +35.0 | [+20.0, +48.3] | 0.0013 | superior |
-| A 128k | 60 | 5.0% | 51.7% | +46.7 | [+35.0, +58.3] | 4.62e-07 | superior |
-| A 512k | 60 | 1.7% | 38.3% | +36.7 | [+26.7, +46.7] | 2.86e-06 | superior |
-| L 8k | 60 | 91.7% | 96.7% | +5.0 | [-1.7, +11.7] | 0.665 | non-inferior |
-| L 32k | 60 | 81.7% | 100.0% | +18.3 | [+10.0, +26.7] | 0.00293 | superior |
-| L 128k | 60 | 63.3% | 95.0% | +31.7 | [+20.0, +43.3] | 0.00033 | superior |
-| L 512k | 60 | 15.0% | 86.7% | +71.7 | [+60.0, +81.7] | 1.44e-10 | superior |
-| P 8k | 60 | 41.7% | 95.0% | +53.3 | [+40.0, +65.0] | 4.67e-07 | superior |
-| P 32k | 60 | 10.0% | 95.0% | +85.0 | [+76.7, +93.3] | 1.44e-13 | superior |
-| P 128k | 60 | 5.0% | 76.7% | +71.7 | [+61.7, +81.7] | 2.5e-12 | superior |
-| P 512k | 60 | 0.0% | 71.7% | +71.7 | [+61.7, +81.7] | 2.5e-12 | superior |
+| **A+P 128k+512k** | 240 | 2.9% | 59.6% | +56.7 | [+51.2, +62.1] | 7.98e-40 | **superior** |
+| A 8k | 60 | 78.3% | 86.7% | +8.3 | [-3.3, +20.0] | 0.665 | non-inferior (unadjusted) |
+| A 32k | 60 | 31.7% | 66.7% | +35.0 | [+20.0, +48.3] | 0.0013 | superior (unadjusted) |
+| A 128k | 60 | 5.0% | 51.7% | +46.7 | [+35.0, +58.3] | 4.62e-07 | superior (unadjusted) |
+| A 512k | 60 | 1.7% | 38.3% | +36.7 | [+26.7, +46.7] | 2.86e-06 | superior (unadjusted) |
+| L 8k | 60 | 91.7% | 96.7% | +5.0 | [-1.7, +11.7] | 0.665 | non-inferior (unadjusted) |
+| L 32k | 60 | 81.7% | 100.0% | +18.3 | [+10.0, +26.7] | 0.00293 | superior (unadjusted) |
+| L 128k | 60 | 63.3% | 95.0% | +31.7 | [+20.0, +43.3] | 0.00033 | superior (unadjusted) |
+| L 512k | 60 | 15.0% | 86.7% | +71.7 | [+60.0, +81.7] | 1.44e-10 | superior (unadjusted) |
+| P 8k | 60 | 41.7% | 95.0% | +53.3 | [+40.0, +65.0] | 4.67e-07 | superior (unadjusted) |
+| P 32k | 60 | 10.0% | 95.0% | +85.0 | [+76.7, +93.3] | 1.44e-13 | superior (unadjusted) |
+| P 128k | 60 | 5.0% | 76.7% | +71.7 | [+61.7, +81.7] | 2.5e-12 | superior (unadjusted) |
+| P 512k | 60 | 0.0% | 71.7% | +71.7 | [+61.7, +81.7] | 2.5e-12 | superior (unadjusted) |
 
 ## Sample size: the honest arithmetic
 
@@ -152,20 +200,30 @@ On the primary set 240 questions are paired and 57.5% of pairs disagree, so the 
 
 Cost is measured tokens × configured list prices (free-tier calls priced at list price); CPU calls are priced as electricity plus amortisation. Latency is the critical path per question (plan + filter + slowest map wave + reduce), computed from spans. In virtual time the simulated user asks the next question a minute after each answer, so rate-limit queueing within a question is real but backlog across questions is not.
 
-| cell | P0: $/correct · p95 | P1: $/correct · p95 | P2: $/correct · p95 | P3: $/correct · p95 |
-|---|---|---|---|---|
-| L 8k | $0.00273 · 1.2s | $0.00086 · 1.3s | $0.00087 · 1.3s | $0.00090 · 1.3s |
-| L 32k | $0.0118 · 2.9s | $0.00115 · 1.8s | $0.00116 · 1.8s | $0.00116 · 1.8s |
-| L 128k | $0.0507 · 8.8s | $0.00185 · 1.1s | $0.00185 · 1.1s | $0.00185 · 1.1s |
-| L 512k | $0.2140 · 8.8s | $0.00270 · 1.5s | $0.00203 · 1.2s | $0.00203 · 1.2s |
-| A 8k | $0.00319 · 1.1s | $0.00158 · 1.3s | $0.00158 · 1.3s | $0.00163 · 1.3s |
-| A 32k | $0.0304 · 3.0s | $0.00367 · 1.3s | $0.00367 · 1.3s | $0.00368 · 1.3s |
-| A 128k | $0.6420 · 8.7s | $0.0176 · 2.2s | $0.0177 · 2.2s | $0.0178 · 2.2s |
-| A 512k | $1.9259 · 8.7s | $0.1206 · 185.1s | $0.1167 · 184.9s | $0.1171 · 184.9s |
-| P 8k | $0.00601 · 1.1s | $0.00384 · 1.3s | $0.00384 · 1.3s | $0.00384 · 1.3s |
-| P 32k | $0.0964 · 3.0s | $0.0136 · 1.6s | $0.0136 · 1.7s | $0.0136 · 1.7s |
-| P 128k | $0.6421 · 8.8s | $0.0533 · 61.6s | $0.0652 · 61.6s | $0.0652 · 61.6s |
-| P 512k | — · 8.8s | $0.3377 · 301.4s | $0.3139 · 301.3s | $0.2869 · 301.2s |
+**About the placeholder price.** Qwen 3.8 27B on Cerebras (C5) has no list price we could confirm, so `candidates.yaml` carries a placeholder ($0.30 in / $0.60 out per million tokens), and C5 does almost all the work: it is the only model in P0, P0f and P1, and serves 96.1% of P3's calls. The absolute dollars scale with that guess; the cost-per-correct *ratios* barely do, because both sides of each ratio are priced on the same model, so a common change in C5's price cancels and only its input/output split could move them. The table reprices the recorded token counts of the primary set under other C5 prices (C4 stays at its published rate):
+
+| C5 price (in / out per M tokens) | P3 / P0 cost per correct | P3 / P0f cost per correct | P1 / P0f cost per correct |
+|---|---|---|---|
+| placeholder ($0.30 / $0.60) | 0.12× | 1.47× | 1.44× |
+| cheap, flat ($0.10 / $0.10) | 0.12× | 1.53× | 1.32× |
+| 2x placeholder ($0.60 / $1.20) | 0.11× | 1.43× | 1.44× |
+| output-heavy ($0.10 / $0.80) | 0.19× | 2.33× | 2.14× |
+| input-heavy ($0.80 / $0.10) | 0.10× | 1.20× | 1.21× |
+
+| cell | P0: $/correct · p95 | P0f: $/correct · p95 | P1: $/correct · p95 | P2: $/correct · p95 | P3: $/correct · p95 |
+|---|---|---|---|---|---|
+| L 8k | $0.00273 · 1.2s | $0.00086 · 1.3s | $0.00086 · 1.3s | $0.00087 · 1.3s | $0.00090 · 1.3s |
+| L 32k | $0.0118 · 2.9s | $0.00115 · 1.8s | $0.00115 · 1.8s | $0.00116 · 1.8s | $0.00116 · 1.8s |
+| L 128k | $0.0507 · 8.8s | $0.00185 · 1.1s | $0.00185 · 1.1s | $0.00185 · 1.1s | $0.00185 · 1.1s |
+| L 512k | $0.2140 · 8.8s | $0.00270 · 1.5s | $0.00270 · 1.5s | $0.00203 · 1.2s | $0.00203 · 1.2s |
+| A 8k | $0.00319 · 1.1s | $0.00136 · 1.4s | $0.00158 · 1.3s | $0.00158 · 1.3s | $0.00163 · 1.3s |
+| A 32k | $0.0304 · 3.0s | $0.00233 · 1.9s | $0.00367 · 1.3s | $0.00367 · 1.3s | $0.00368 · 1.3s |
+| A 128k | $0.6420 · 8.7s | $0.0114 · 5.8s | $0.0176 · 2.2s | $0.0177 · 2.2s | $0.0178 · 2.2s |
+| A 512k | $1.9259 · 8.7s | $0.0498 · 9.2s | $0.1206 · 185.1s | $0.1167 · 184.9s | $0.1171 · 184.9s |
+| P 8k | $0.00601 · 1.1s | $0.00812 · 1.7s | $0.00384 · 1.3s | $0.00384 · 1.3s | $0.00384 · 1.3s |
+| P 32k | $0.0964 · 3.0s | $0.1195 · 3.5s | $0.0136 · 1.6s | $0.0136 · 1.7s | $0.0136 · 1.7s |
+| P 128k | $0.6421 · 8.8s | $0.6289 · 9.3s | $0.0533 · 61.6s | $0.0652 · 61.6s | $0.0652 · 61.6s |
+| P 512k | — · 8.8s | — · 9.3s | $0.3377 · 301.4s | $0.3139 · 301.3s | $0.2869 · 301.2s |
 
 ## Router diagnostics (P3, learned)
 
@@ -229,7 +287,7 @@ Standardised coefficients (positive = more likely correct):
 
 ### Exploration, and what it costs
 
-The evaluation run `main-P3` is the learned policy with exploration off. A second run, `main-P3x`, sends 5% of calls to a random feasible candidate and logs the propensity. Exploring cost 2.1 accuracy points overall (80.0% → 77.9%; 24 questions flipped from right to wrong): one question fans out into up to ~180 map calls, so per-call exploration almost always touches some call of a large question, and one bad chunk breaks an exact answer. Exploration belongs on a profiling stream or under a per-question budget, not on every call.
+The evaluation run `main-P3` is the learned policy with exploration off. A second run, `main-P3x`, sends 5% of calls to a random feasible candidate and logs the propensity. Exploring cost 2.1 accuracy points over all 720 questions (80.0% → 77.9%; 24 questions flipped from right to wrong): one question fans out into up to ~180 map calls, so per-call exploration almost always touches some call of a large question, and one bad chunk breaks an exact answer. Exploration belongs on a profiling stream or under a per-question budget, not on every call.
 
 Inverse-propensity estimates of how fixed mapper policies would have done on the logged calls of `main-P3x`, without re-running them:
 
@@ -252,11 +310,12 @@ The planner (shared by P1–P3) decides the strategy; the router then places the
 
 ## Live validation on Cerebras
 
-P0 (C5 reads the corpus, trimmed to its window) and P3 (learned router over C4, C5 and C6, all live) on the same 20 questions: the first 10 aggregate and 10 pairwise questions at 128k, real clocks, real quotas. Runs `live-P0-128k` and `live-P3-128k`; the simulated columns are the same questions in `precal-*-slice` (before recalibration) and `main-P0` / `main-P3` (after); "agree" = same right/wrong outcome per question.
+P0 (C5 reads the corpus, trimmed to its window), P0f (the shared plan's filter in code, then one direct call on C5) and P3 (learned router over C4, C5 and C6, all live) on the same 20 questions: the first 10 aggregate and 10 pairwise questions at 128k, real clocks, real quotas. Runs `live-P0-128k`, `live-P0f-128k` and `live-P3-128k`; the simulated columns are the same questions in `precal-*-slice` (before recalibration; P0f didn't exist yet) and `main-P0` / `main-P0f` / `main-P3` (after); "agree" = same right/wrong outcome per question.
 
 | pipeline | n | live accuracy | simulated, before (out of sample) | simulated, after recalibration | live cost / correct | latency p50 / p95 | from first admission p50 / p95 | truncated |
 |---|---|---|---|---|---|---|---|---|
 | P0 | 20 | 5.0% | 0.0% (95.0% agree) | 0.0% (95.0% agree) | $0.7429 | 60.1 / 64.2 s | 1.9 / 10.3 s | 20 |
+| P0f | 20 | 5.0% | — | 35.0% (60.0% agree) | $0.4378 | 51.6 / 68.1 s | 51.6 / 68.1 s | 10 |
 | P3 | 20 | 60.0% | 80.0% (60.0% agree) | 70.0% (70.0% agree) | $0.0604 | 63.6 / 72.4 s | 63.6 / 72.4 s | 0 |
 
 Live questions ran back to back, so a question's first call often waited for the previous question's tokens to leave the 150k-a-minute window. *From first admission* subtracts that carry-over; queueing inside the question (a fan-out exceeding the quota) stays in.
@@ -265,7 +324,17 @@ Live questions ran back to back, so a question's first call often waited for the
 
 **A second catch.** Recalibrated on that slice, the simulator briefly favoured gpt-oss-120b (C4) for tone: C4's tone rate still rested on 6 observations, so it was nearly all prior, and the learned router exploited it (22 of its 31 wins over the rules were tone questions). A targeted live run on the same 7 tone questions (`tone-C4-live`, `tone-C5-live`) scored C4 0/7 and C5 1/7, and measured C4's tone error at 15% per ticket, 3× Qwen's. With that in the fit, the learned router's advantage disappeared. Lesson: a learned router finds and exploits whichever parameter has the least evidence, so every routing gain needs its evidence checked live.
 
-Paired on these 20 questions, P3 − P0 = +55.0 points (one-sided 95% CI [+30.0, +75.0], McNemar p = 0.00342): **superior** — "Better than the baseline". With n = 20 this is a check that the simulated verdict survives contact with the real API, not a replacement for the 240-question analysis.
+Paired on these 20 questions:
+
+| comparison | diff (points) | one-sided 95% CI | McNemar p | verdict | aggregate / pairwise diff |
+|---|---|---|---|---|---|
+| P3 − P0 | +55.0 | [+30.0, +75.0] | 0.00342 | **superior** | +10 / +100 |
+| P0f − P0 | +0.0 | [+0.0, +0.0] | 1 | **non-inferior** | +0 / +0 |
+| P3 − P0f | +55.0 | [+30.0, +75.0] | 0.00342 | **superior** | +10 / +100 |
+
+With n = 20 these check that the simulated verdicts survive contact with the real API; they don't replace the 240-question analysis.
+
+**Filtering or splitting? Live says splitting.** Filtering in code and then making one direct call (P0f) scored 5.0% live, the same as P0. On the 10 aggregate questions the filter cut 1,130 tickets to 15–373, yet the single direct call still got 9 wrong, even on 15–24 tickets: the model miscounts and mis-sums however short the context. On the 10 pairwise questions the plan has no header filter, so P0f read the same trimmed corpus as P0 and got 0/10, where P3 got 10/10. The whole live gain comes from splitting the work into per-ticket extraction and doing the arithmetic in code. The simulator disagrees: it gave P0f 35.0% on these same questions and credits filtering with much of the gain overall, because its accuracy curve for direct calls (an assumption, not a fit) is too kind to short filtered contexts. Treat the simulated P0f rows as an upper bound for filtering.
 
 Live P3 calls by role and candidate: mapper C4 ×28, mapper C5 ×466, planner C5 ×20.
 
