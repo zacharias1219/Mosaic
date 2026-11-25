@@ -1,0 +1,58 @@
+# Publish the interactive figure to GitHub Pages (Settings > Pages > Source: GitHub Actions).
+# Every pull request builds the site as a check; only main deploys it.
+name: Pages
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# one deployment at a time; a newer push to main replaces a queued one, a running one finishes
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Assemble the site
+        run: |
+          set -euo pipefail
+          test -s figures/mosaic-machine.html
+          # the figure is one self-contained file: it becomes the home page as it is
+          mkdir -p _site
+          cp figures/mosaic-machine.html _site/index.html
+          cp figures/mosaic-machine.html _site/mosaic-machine.html
+          # GitHub Pages serves files as they are (no Jekyll)
+          touch _site/.nojekyll
+          # sanity: the engine and the figure's own script are inlined, no external file is needed
+          grep -q "function mountFigure" _site/index.html
+          grep -q "Mosaic, the machine" _site/index.html
+          ls -la _site
+
+      - uses: actions/configure-pages@v5
+        if: github.event_name != 'pull_request'
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
