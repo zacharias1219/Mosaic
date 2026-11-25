@@ -26,6 +26,18 @@ question ─► planner ─► filter + chunk (code) ─► map × N (routed per
 The full results are in **[report/report.md](report/report.md)**, and the reasoning behind each choice is in
 **[DECISIONS.md](DECISIONS.md)**.
 
+### See it work: [Mosaic, the machine](https://zacharias1219.github.io/Mosaic/)
+
+An interactive figure of the whole pipeline as a hand-inked machine, running one real question from the live
+Cerebras run: *"What was the total amount refunded for billing issues in May?"* Press **Ask the question → Filter in
+code → Send to the model → Read the answer**: the planner prints a plan, a code filter keeps 186 of 1,130 tickets, the
+router sends 8 bundles to Qwen on Cerebras, and a code tally adds up **$1,788.61** (right). The **Pipeline** picker
+replays the two baselines on the same question: filter-then-one-call answers $1,347.44 and one call over the trimmed log
+answers $1,244.74 (both wrong, both live). Drag to turn it round; **See-through** shows the working parts and **Labels**
+names them. It is one self-contained file, also in the repo as
+[`figures/mosaic-machine.html`](figures/mosaic-machine.html) (open it locally; no network needed), and is published to
+GitHub Pages by [`.github/workflows/pages.yml`](.github/workflows/pages.yml) on every push to `main`.
+
 ## Results
 
 Three question sets appear below; each number says which one it comes from:
@@ -184,6 +196,7 @@ mosaic/
   eval/        scorer.py  stats.py  compare.py
   report/      charts.py  report.py  demo.py
   gateway.py  trace.py  pipelines.py  session.py  config.py  cli.py
+figures/       the interactive figure (one self-contained page) and its source
 tests/         one module per component, recorded provider fixtures, an opt-in live suite (pytest -m live)
 runs/          committed run records (gzipped JSONL) behind every number in the report
 profiles/ router/ report/   profiles, routing labels, the trained predictor, the report
